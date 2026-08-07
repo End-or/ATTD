@@ -220,9 +220,9 @@
 
   <!-- 메인 (출퇴근) -->
   <div id="v-main" class="view">
-    <div id="tabbar" class="tabs">
+    <div id="tabbar" class="tabs show">
       <button class="tab on" onclick="gotoTab('main')">출퇴근</button>
-      <button class="tab" onclick="gotoTab('admin')">관리자</button>
+      <button class="tab" onclick="gotoTab('menu')">메뉴</button>
     </div>
 
     <div class="hello"><span id="u-name"></span>님</div>
@@ -245,15 +245,6 @@
       <ul id="today-list"></ul>
     </div>
 
-    <div class="today" style="margin-top:26px">
-      <h2>올해 연차 계산</h2>
-      <div class="range">
-        <input id="lv-total" inputmode="decimal" placeholder="부여받은 연차 개수 입력">
-        <button id="btn-lvcalc" class="mini" style="margin-top:0;flex:0 0 auto;padding:12px 20px" onclick="calcLeave()">계산</button>
-      </div>
-      <div id="leave-info" class="meta" style="margin-top:10px"></div>
-    </div>
-
     <div class="foot"><button class="linkbtn" onclick="logout()">로그아웃</button></div>
   </div>
 
@@ -261,22 +252,15 @@
   <div id="v-admin" class="view">
     <div class="tabs show">
       <button class="tab" onclick="gotoTab('main')">출퇴근</button>
-      <button class="tab on" onclick="gotoTab('admin')">관리자</button>
+      <button class="tab on" onclick="gotoTab('menu')">메뉴</button>
     </div>
 
-    <div class="seg">
-      <button id="sg-today"   class="on" onclick="gotoSec('today')">오늘 현황</button>
-      <button id="sg-records" onclick="gotoSec('records')">기록 조회</button>
-      <button id="sg-missing" onclick="gotoSec('missing')">퇴근 누락</button>
-      <button id="sg-monthly" onclick="gotoSec('monthly')">월별 집계</button>
-      <button id="sg-emp"     onclick="gotoSec('emp')">직원 관리</button>
-      <button id="sg-vac"     onclick="gotoSec('vac')">휴가 관리</button>
-      <button id="sg-pw"      onclick="gotoSec('pw')">비번 초기화</button>
-    </div>
+    <div class="seg" id="menu-groups"></div>
+    <div class="seg" id="menu-subtabs" style="display:none"></div>
 
     <!-- 오늘 현황 -->
     <div id="sec-today" class="sec on">
-      <h2>오늘 출퇴근 현황</h2>
+      <h2>금일 출퇴근 현황</h2>
       <ul id="adm-today-list"><li class="empty">불러오는 중…</li></ul>
       <button class="mini" onclick="loadAdminToday()">새로고침</button>
     </div>
@@ -334,8 +318,11 @@
       <h2>직원 목록</h2>
       <ul id="adm-emp-list"><li class="empty">불러오는 중…</li></ul>
       <div id="adm-emp-msg" class="adm-msg"></div>
+    </div>
 
-      <h2 style="margin-top:28px">직원 추가</h2>
+    <!-- 직원 추가 -->
+    <div id="sec-addemp" class="sec">
+      <h2>직원 추가</h2>
       <label>회사 이메일 (아이디 = @ 앞부분)</label>
       <input id="e-email" type="email" placeholder="hong.gd@company.com" autocapitalize="none">
       <label>이름</label>
@@ -346,8 +333,11 @@
       <select id="e-role"><option>직원</option><option>관리자</option></select>
       <button id="btn-addemp" class="mini" onclick="addEmp()">추가 (초기 비밀번호 1234)</button>
       <div id="adm-add-msg" class="adm-msg"></div>
+    </div>
 
-      <h2 style="margin-top:28px">수동 기록 추가</h2>
+    <!-- 수동 기록 -->
+    <div id="sec-manual" class="sec">
+      <h2>수동 기록 추가</h2>
       <label>직원</label>
       <div class="pickwrap">
         <input class="pickin" id="m-emp" placeholder="이름/초성으로 검색" autocomplete="off">
@@ -390,6 +380,24 @@
       <p class="meta" style="margin-top:10px;line-height:1.6">
         휴가일은 오늘 현황과 월별 집계에 자동 반영됩니다.
       </p>
+    </div>
+
+    <!-- 내 기록 (전 직원) -->
+    <div id="sec-myrec" class="sec">
+      <h2 id="myrec-title">이번 달 내 기록</h2>
+      <ul id="myrec-list"></ul>
+      <button class="mini" onclick="loadMyMonth()">새로고침</button>
+    </div>
+
+    <!-- 연차 계산 (전 직원) -->
+    <div id="sec-leave" class="sec">
+      <h2>올해 연차 계산</h2>
+      <p class="meta" style="margin-bottom:8px;line-height:1.6">부여받은 연차 개수를 입력하면 올해 사용한 휴가를 집계해 잔여를 계산합니다. (저장되지 않음)</p>
+      <div class="range">
+        <input id="lv-total" inputmode="decimal" placeholder="부여받은 연차 개수 입력">
+        <button id="btn-lvcalc" class="mini" style="margin-top:0;flex:0 0 auto;padding:12px 20px" onclick="calcLeave()">계산</button>
+      </div>
+      <div id="leave-info" class="meta" style="margin-top:10px"></div>
     </div>
 
     <!-- 비번 초기화 -->
@@ -475,29 +483,121 @@
   }
 
   function gotoTab(t) {
-    if (t === 'admin') {
+    if (t === 'menu') {
       show('v-admin');
-      if (!empListLoaded) loadAdminToday();
+      if (myRole === '관리자' && !empListLoaded) loadAdminToday();
+      renderMenu();
     } else {
       show('v-main');
     }
   }
 
-  function gotoSec(s) {
-    ['today','records','missing','monthly','emp','vac','pw'].forEach(function (k) {
-      document.getElementById('sec-' + k).classList.toggle('on', k === s);
-      document.getElementById('sg-' + k).classList.toggle('on', k === s);
+  /* ── 메뉴 구조: 그룹 → 세부탭 → 섹션 ── */
+  var MENU_GROUPS = [
+    { key: 'today',   label: '금일 현황', admin: true,  tabs: [['today', '현황']] },
+    { key: 'records', label: '기록 조회', admin: true,  tabs: [['records', '조회'], ['monthly', '월별 집계']] },
+    { key: 'att',     label: '근태 관리', admin: true,  tabs: [['vac', '휴가'], ['missing', '퇴근 누락'], ['manual', '수동 기록']] },
+    { key: 'people',  label: '인원 관리', admin: true,  tabs: [['emp', '직원 목록']] },
+    { key: 'app',     label: '어플 관리', admin: true,  tabs: [['addemp', '직원 추가'], ['pw', '비번 초기화']] },
+    { key: 'me',      label: '내 기록',   admin: false, tabs: [['myrec', '내 기록']] },
+    { key: 'leave',   label: '연차 계산', admin: false, tabs: [['leave', '연차 계산']] }
+  ];
+  var ALL_SECS = ['today', 'records', 'monthly', 'vac', 'missing', 'manual', 'emp', 'addemp', 'pw', 'myrec', 'leave'];
+  var curGroupKey = null;
+
+  function visibleGroups() {
+    var isAdmin = myRole === '관리자';
+    return MENU_GROUPS.filter(function (g) { return isAdmin || !g.admin; });
+  }
+
+  function renderMenu() {
+    var groups = visibleGroups();
+    var wrap = document.getElementById('menu-groups');
+    wrap.innerHTML = '';
+    groups.forEach(function (g) {
+      var b = document.createElement('button');
+      b.textContent = g.label;
+      b.id = 'grp-' + g.key;
+      b.onclick = function () { openGroup(g.key); };
+      wrap.appendChild(b);
     });
-    if (s === 'missing') loadMissing();
-    if (s === 'emp') loadEmpList();
-    if (s === 'vac') loadVacs();
-    if (s === 'monthly') {
-      if (!document.getElementById('m-month').value) {
-        var n = new Date();
-        document.getElementById('m-month').value =
-          n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0');
-      }
+    var cur = groups.some(function (g) { return g.key === curGroupKey; }) ? curGroupKey : groups[0].key;
+    openGroup(cur);
+  }
+
+  function openGroup(key) {
+    curGroupKey = key;
+    var groups = visibleGroups();
+    var g = null;
+    groups.forEach(function (x) { if (x.key === key) g = x; });
+    if (!g) return;
+    var wrap = document.getElementById('menu-groups');
+    for (var i = 0; i < wrap.children.length; i++) {
+      wrap.children[i].classList.toggle('on', wrap.children[i].id === 'grp-' + key);
     }
+    var sub = document.getElementById('menu-subtabs');
+    sub.innerHTML = '';
+    if (g.tabs.length > 1) {
+      sub.style.display = 'flex';
+      g.tabs.forEach(function (t) {
+        var b = document.createElement('button');
+        b.textContent = t[1];
+        b.dataset.sec = t[0];
+        b.onclick = function () { openSec(t[0]); };
+        sub.appendChild(b);
+      });
+    } else {
+      sub.style.display = 'none';
+    }
+    openSec(g.tabs[0][0]);
+  }
+
+  function openSec(secId) {
+    ALL_SECS.forEach(function (k) {
+      var el = document.getElementById('sec-' + k);
+      if (el) el.classList.toggle('on', k === secId);
+    });
+    var sub = document.getElementById('menu-subtabs');
+    for (var i = 0; i < sub.children.length; i++) {
+      sub.children[i].classList.toggle('on', sub.children[i].dataset.sec === secId);
+    }
+    if (secId === 'today') loadAdminToday();
+    if (secId === 'missing') loadMissing();
+    if (secId === 'emp') loadEmpList();
+    if (secId === 'vac') loadVacs();
+    if (secId === 'myrec') loadMyMonth();
+    if (secId === 'monthly' && !document.getElementById('m-month').value) {
+      var n = new Date();
+      document.getElementById('m-month').value =
+        n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0');
+    }
+  }
+
+  /* ── 내 기록 (이번 달) ── */
+  function loadMyMonth() {
+    var ul = document.getElementById('myrec-list');
+    listLoading(ul);
+    api('myMonth', { token: token }, function (res) {
+      if (!res.ok) { ul.innerHTML = '<li class="empty">' + res.msg + '</li>'; return; }
+      document.getElementById('myrec-title').textContent = res.ym + ' 내 기록';
+      ul.innerHTML = '';
+      if (res.rows.length === 0) { ul.innerHTML = '<li class="empty">이번 달 기록이 없습니다.</li>'; return; }
+      res.rows.forEach(function (r) {
+        var li = document.createElement('li');
+        li.className = 'rowline';
+        li.innerHTML = '<span class="meta"></span><span class="t"></span>';
+        li.children[0].textContent = r.date;
+        if (r.status === '정상') {
+          li.children[1].textContent = r.inT + ' ~ ' + r.outT;
+        } else if (r.status === '근무중') {
+          li.children[1].textContent = r.inT + ' ~ 근무 중';
+        } else {
+          li.children[1].innerHTML = '<span class="warn"></span>';
+          li.children[1].children[0].textContent = r.status + (r.inT ? ' (출근 ' + r.inT + ')' : r.outT ? ' (퇴근 ' + r.outT + ')' : '');
+        }
+        ul.appendChild(li);
+      });
+    }, function () { ul.innerHTML = '<li class="empty">불러오기에 실패했습니다.</li>'; });
   }
 
   /* ── 시계 ── */
@@ -536,7 +636,6 @@
 
   function applyRole(role) {
     myRole = role || '';
-    document.getElementById('tabbar').classList.toggle('show', myRole === '관리자');
   }
 
   /* ── 로그인 ── */
@@ -624,6 +723,7 @@
         document.getElementById('ov-leave').classList.add('on');
         return;
       }
+      if (!confirm('정말 퇴근 처리할까요?')) return;
     }
     doPunch(type, '');
   }
@@ -704,12 +804,16 @@
     }, function () { done(); el.textContent = '조회에 실패했습니다. 다시 시도해 주세요.'; });
   }
 
-  /* 오늘 출근이 이미 있으면 출근 버튼 잠금 */
+  /* 오늘 출근/퇴근이 이미 있으면 해당 버튼 잠금 */
   function updatePunchButtons() {
     var hasIn = todayData.some(function (r) { return r.type === '출근'; });
+    var hasOut = todayData.some(function (r) { return r.type === '퇴근'; });
     var bi = document.getElementById('b-in');
     bi.disabled = hasIn;
     bi.textContent = hasIn ? '출근 완료' : '출근';
+    var bo = document.getElementById('b-out');
+    bo.disabled = hasOut;
+    bo.textContent = hasOut ? '퇴근 완료' : '퇴근';
   }
 
   function getLocation(cb) {
@@ -1194,7 +1298,6 @@
     todayData = [];
     empListLoaded = false;
     document.getElementById('f-pw').value = '';
-    document.getElementById('tabbar').classList.remove('show');
     show('v-login');
   }
 
