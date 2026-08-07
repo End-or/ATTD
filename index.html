@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<meta name="theme-color" content="#0f6e56">
+<title>출퇴근 기록</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  :root {
+    --ink: #1c2b2a;
+    --sub: #6b7a78;
+    --line: #e3e8e7;
+    --accent: #0f6e56;
+    --accent-soft: #e1f5ee;
+    --danger: #b3261e;
+    --bg: #fafbfb;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    background: var(--bg); color: var(--ink);
+    display: flex; justify-content: center;
+  }
+  .app { width: 100%; max-width: 420px; min-height: 100%; padding: 28px 22px 40px; display: flex; flex-direction: column; }
+  .view { display: none; flex: 1; flex-direction: column; }
+  .view.on { display: flex; }
+
+  .brand { font-size: 15px; letter-spacing: .12em; color: var(--sub); margin-bottom: 6px; }
+  h1 { font-size: 26px; font-weight: 700; margin-bottom: 32px; }
+
+  label { font-size: 13px; color: var(--sub); display: block; margin: 18px 0 6px; }
+  input, select {
+    width: 100%; font-size: 17px; padding: 14px 14px;
+    border: 1px solid var(--line); border-radius: 12px; background: #fff;
+    outline: none; color: var(--ink);
+  }
+  input:focus, select:focus { border-color: var(--accent); }
+
+  button { font-family: inherit; cursor: pointer; border: none; border-radius: 14px; }
+  .primary {
+    width: 100%; margin-top: 28px; padding: 16px;
+    font-size: 17px; font-weight: 600; color: #fff; background: var(--accent);
+  }
+  .primary:active { opacity: .85; }
+  .msg { min-height: 20px; margin-top: 14px; font-size: 14px; color: var(--danger); }
+
+  /* 상단 탭 (관리자만 노출) */
+  .tabs { display: none; gap: 8px; margin-bottom: 24px; }
+  .tabs.show { display: flex; }
+  .tab {
+    flex: 1; padding: 11px 0; font-size: 15px; font-weight: 600;
+    background: #fff; border: 1px solid var(--line); border-radius: 12px; color: var(--sub);
+  }
+  .tab.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+
+  /* 출퇴근 화면 */
+  .hello { font-size: 15px; color: var(--sub); }
+  .clock { font-size: 44px; font-weight: 700; font-variant-numeric: tabular-nums; margin: 4px 0 2px; }
+  .date { font-size: 14px; color: var(--sub); margin-bottom: 30px; }
+
+  .btn-wrap { display: flex; gap: 12px; }
+  .punch { flex: 1; padding: 34px 0; font-size: 20px; font-weight: 700; border-radius: 18px; }
+  .in  { background: var(--accent); color: #fff; }
+  .out { background: #fff; color: var(--ink); border: 1.5px solid var(--ink); }
+  .punch:disabled { opacity: .45; }
+  .punch:active { opacity: .8; }
+
+  .status { margin-top: 18px; font-size: 15px; min-height: 22px; }
+  .status.ok { color: var(--accent); font-weight: 600; }
+  .status.err { color: var(--danger); }
+
+  .today { margin-top: 34px; }
+  .today h2, .sec h2 { font-size: 14px; color: var(--sub); font-weight: 600; margin-bottom: 10px; }
+  ul { list-style: none; }
+  .rowline {
+    display: flex; justify-content: space-between; gap: 8px; padding: 11px 4px;
+    border-bottom: 1px solid var(--line); font-size: 15px;
+  }
+  .rowline .t { font-variant-numeric: tabular-nums; color: var(--sub); white-space: nowrap; }
+  .empty { color: var(--sub); font-size: 14px; padding: 8px 4px; }
+  .tag { font-weight: 600; }
+  .tag.i { color: var(--accent); }
+  .warn { color: var(--danger); font-weight: 600; }
+
+  /* 관리자 화면 */
+  .seg { display: flex; gap: 6px; margin-bottom: 20px; }
+  .seg button {
+    flex: 1; padding: 10px 0; font-size: 13.5px; font-weight: 600;
+    background: #fff; border: 1px solid var(--line); border-radius: 10px; color: var(--sub);
+  }
+  .seg button.on { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+  .sec { display: none; }
+  .sec.on { display: block; }
+  .mini {
+    margin-top: 14px; width: 100%; padding: 13px;
+    font-size: 15px; font-weight: 600; color: #fff; background: var(--ink); border-radius: 12px;
+  }
+  .mini:active { opacity: .85; }
+  .mini.red { background: var(--danger); }
+  .range { display: flex; gap: 8px; }
+  .range input { font-size: 15px; padding: 12px 10px; }
+  .adm-msg { min-height: 20px; margin-top: 12px; font-size: 14px; }
+  .adm-msg.ok { color: var(--accent); }
+  .adm-msg.err { color: var(--danger); }
+
+  .foot { margin-top: auto; padding-top: 30px; text-align: center; }
+  .linkbtn { background: none; color: var(--sub); font-size: 13px; text-decoration: underline; }
+
+  .center { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--sub); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- 로딩 -->
+  <div id="v-loading" class="view on"><div class="center">확인 중…</div></div>
+
+  <!-- 로그인 -->
+  <div id="v-login" class="view">
+    <div class="brand">ATTENDANCE</div>
+    <h1>출퇴근 기록</h1>
+    <label for="f-id">아이디 (휴대폰 번호 뒤 8자리)</label>
+    <input id="f-id" inputmode="numeric" maxlength="8" placeholder="12345678" autocomplete="username">
+    <label for="f-pw">비밀번호</label>
+    <input id="f-pw" type="password" placeholder="초기 비밀번호 1234" autocomplete="current-password">
+    <button class="primary" onclick="login()">로그인</button>
+    <div id="login-msg" class="msg"></div>
+  </div>
+
+  <!-- 비밀번호 변경 -->
+  <div id="v-changepw" class="view">
+    <div class="brand">ATTENDANCE</div>
+    <h1>비밀번호 변경</h1>
+    <p style="font-size:14px;color:var(--sub);line-height:1.6">
+      초기 비밀번호(1234)를 사용 중입니다.<br>새 비밀번호를 설정해 주세요.
+    </p>
+    <label for="f-npw">새 비밀번호 (6자 이상)</label>
+    <input id="f-npw" type="password" autocomplete="new-password">
+    <label for="f-npw2">새 비밀번호 확인</label>
+    <input id="f-npw2" type="password" autocomplete="new-password">
+    <button class="primary" onclick="changePw()">변경하고 시작하기</button>
+    <div id="pw-msg" class="msg"></div>
+  </div>
+
+  <!-- 메인 (출퇴근) -->
+  <div id="v-main" class="view">
+    <div id="tabbar" class="tabs">
+      <button class="tab on" onclick="gotoTab('main')">출퇴근</button>
+      <button class="tab" onclick="gotoTab('admin')">관리자</button>
+    </div>
+
+    <div class="hello"><span id="u-name"></span>님</div>
+    <div class="clock" id="clock">--:--:--</div>
+    <div class="date" id="date"></div>
+
+    <div class="btn-wrap">
+      <button id="b-in"  class="punch in"  onclick="punch('출근')">출근</button>
+      <button id="b-out" class="punch out" onclick="punch('퇴근')">퇴근</button>
+    </div>
+    <div id="p-status" class="status"></div>
+
+    <div class="today">
+      <h2>오늘 기록</h2>
+      <ul id="today-list"></ul>
+    </div>
+
+    <div class="foot"><button class="linkbtn" onclick="logout()">로그아웃</button></div>
+  </div>
+
+  <!-- 관리자 -->
+  <div id="v-admin" class="view">
+    <div class="tabs show">
+      <button class="tab" onclick="gotoTab('main')">출퇴근</button>
+      <button class="tab on" onclick="gotoTab('admin')">관리자</button>
+    </div>
+
+    <div class="seg">
+      <button id="sg-today"   class="on" onclick="gotoSec('today')">오늘 현황</button>
+      <button id="sg-records" onclick="gotoSec('records')">기록 조회</button>
+      <button id="sg-missing" onclick="gotoSec('missing')">퇴근 누락</button>
+      <button id="sg-pw"      onclick="gotoSec('pw')">비번 초기화</button>
+    </div>
+
+    <!-- 오늘 현황 -->
+    <div id="sec-today" class="sec on">
+      <h2>오늘 출퇴근 현황</h2>
+      <ul id="adm-today-list"><li class="empty">불러오는 중…</li></ul>
+      <button class="mini" onclick="loadAdminToday()">새로고침</button>
+    </div>
+
+    <!-- 기록 조회 -->
+    <div id="sec-records" class="sec">
+      <h2>기록 조회</h2>
+      <label>직원</label>
+      <select id="q-emp"><option value="">전체</option></select>
+      <label>기간</label>
+      <div class="range">
+        <input type="date" id="q-from">
+        <input type="date" id="q-to">
+      </div>
+      <button class="mini" onclick="queryRecords()">조회</button>
+      <ul id="adm-rec-list" style="margin-top:14px"></ul>
+    </div>
+
+    <!-- 퇴근 누락 -->
+    <div id="sec-missing" class="sec">
+      <h2>퇴근 누락 (최근 30일)</h2>
+      <ul id="adm-miss-list"><li class="empty">불러오는 중…</li></ul>
+      <button class="mini" onclick="loadMissing()">새로고침</button>
+      <p style="font-size:13px;color:var(--sub);margin-top:12px;line-height:1.6">
+        정정은 시트의 기록 탭에서 행을 추가하고 비고에 사유를 남기는 방식으로 처리합니다.
+      </p>
+    </div>
+
+    <!-- 비번 초기화 -->
+    <div id="sec-pw" class="sec">
+      <h2>비밀번호 초기화</h2>
+      <label>직원 선택</label>
+      <select id="r-emp"></select>
+      <button class="mini red" onclick="resetPw()">1234로 초기화</button>
+      <div id="adm-pw-msg" class="adm-msg"></div>
+      <p style="font-size:13px;color:var(--sub);margin-top:12px;line-height:1.6">
+        초기화하면 해당 직원은 다음 로그인 때 비밀번호를 새로 설정하게 됩니다.
+      </p>
+    </div>
+
+    <div class="foot"><button class="linkbtn" onclick="logout()">로그아웃</button></div>
+  </div>
+
+</div>
+
+<script>
+  // ★ 배포 후 Apps Script 웹앱 URL(/exec)로 교체할 것 ★
+  var API_URL = 'https://script.google.com/macros/s/여기에_배포_ID/exec';
+
+  /* 백엔드 doPost로 요청을 보내는 공용 함수 */
+  function api(action, params, onOk, onFail) {
+    var body = Object.assign({ action: action }, params || {});
+    fetch(API_URL, { method: 'POST', body: JSON.stringify(body) })
+      .then(function (r) { return r.json(); })
+      .then(function (res) { onOk(res); })
+      .catch(function () { if (onFail) onFail(); });
+  }
+
+  var TOKEN_KEY = 'att_token';
+  var token = localStorage.getItem(TOKEN_KEY) || '';
+  var clientIp = '';
+  var myRole = '';
+  var empListLoaded = false;
+  var cachedLoc = null;   // { lat, lng, ts } — 미리 받아둔 위치
+  var todayData = [];     // 오늘 기록 (클라이언트 보관)
+
+  function show(id) {
+    document.querySelectorAll('.view').forEach(function (v) { v.classList.remove('on'); });
+    document.getElementById(id).classList.add('on');
+  }
+
+  function gotoTab(t) {
+    if (t === 'admin') {
+      show('v-admin');
+      if (!empListLoaded) loadAdminToday();
+    } else {
+      show('v-main');
+    }
+  }
+
+  function gotoSec(s) {
+    ['today','records','missing','pw'].forEach(function (k) {
+      document.getElementById('sec-' + k).classList.toggle('on', k === s);
+      document.getElementById('sg-' + k).classList.toggle('on', k === s);
+    });
+    if (s === 'missing') loadMissing();
+  }
+
+  /* ── 시계 ── */
+  function tick() {
+    var n = new Date();
+    var p = function (x) { return String(x).padStart(2, '0'); };
+    document.getElementById('clock').textContent = p(n.getHours()) + ':' + p(n.getMinutes()) + ':' + p(n.getSeconds());
+    document.getElementById('date').textContent =
+      n.getFullYear() + '년 ' + (n.getMonth() + 1) + '월 ' + n.getDate() + '일 (' +
+      ['일','월','화','수','목','금','토'][n.getDay()] + ')';
+  }
+  setInterval(tick, 1000); tick();
+
+  /* ── 시작 ── */
+  function boot() {
+    if (!token) { show('v-login'); return; }
+    // 저장된 이름이 있으면 검증을 기다리지 않고 바로 메인 표시 (체감 속도)
+    var savedName = localStorage.getItem('att_name');
+    if (savedName) {
+      applyRole(localStorage.getItem('att_role'));
+      enterMain(savedName, null); // null = 목록 로딩 중 표시
+    }
+    api('check', { token: token }, function (res) {
+      if (res.ok) {
+        localStorage.setItem('att_name', res.name);
+        localStorage.setItem('att_role', res.role || '');
+        applyRole(res.role);
+        enterMain(res.name, res.today);
+        if (res.mustChange) show('v-changepw');
+      } else {
+        logout();
+      }
+    }, function () { if (!savedName) show('v-login'); });
+  }
+
+  function applyRole(role) {
+    myRole = role || '';
+    document.getElementById('tabbar').classList.toggle('show', myRole === '관리자');
+  }
+
+  /* ── 로그인 ── */
+  function login() {
+    var id = document.getElementById('f-id').value.trim();
+    var pw = document.getElementById('f-pw').value;
+    var msg = document.getElementById('login-msg');
+    if (!id || !pw) { msg.textContent = '아이디와 비밀번호를 입력해 주세요.'; return; }
+    msg.textContent = '';
+    api('login', { id: id, pw: pw }, function (res) {
+      if (!res.ok) { msg.textContent = res.msg; return; }
+      token = res.token;
+      localStorage.setItem(TOKEN_KEY, token);
+      localStorage.setItem('att_name', res.name);
+      localStorage.setItem('att_role', res.role || '');
+      applyRole(res.role);
+      if (res.mustChange) { document.getElementById('u-name').textContent = res.name; show('v-changepw'); }
+      else { enterMain(res.name, []); refreshToday(); }
+    }, function () { msg.textContent = '연결에 실패했습니다. 잠시 후 다시 시도해 주세요.'; });
+  }
+
+  /* ── 비밀번호 변경 ── */
+  function changePw() {
+    var a = document.getElementById('f-npw').value;
+    var b = document.getElementById('f-npw2').value;
+    var msg = document.getElementById('pw-msg');
+    if (a !== b) { msg.textContent = '두 입력이 서로 다릅니다.'; return; }
+    msg.textContent = '';
+    api('changepw', { token: token, newPw: a }, function (res) {
+      if (!res.ok) { msg.textContent = res.msg; return; }
+      refreshToday();
+      show('v-main');
+    }, function () { msg.textContent = '연결에 실패했습니다.'; });
+  }
+
+  /* ── 메인 ── */
+  function enterMain(name, todayList) {
+    document.getElementById('u-name').textContent = name;
+    if (todayList === null) {
+      document.getElementById('today-list').innerHTML = '<li class="empty">불러오는 중…</li>';
+    } else {
+      todayData = todayList || [];
+      renderToday(todayData);
+    }
+    show('v-main');
+    prefetchLocation();
+  }
+
+  /* 메인 화면에 들어오면 위치를 미리 받아둠 → 버튼 누를 때 대기 없음 */
+  function prefetchLocation() {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      function (pos) {
+        cachedLoc = { lat: pos.coords.latitude, lng: pos.coords.longitude, ts: Date.now() };
+      },
+      function () {},
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 120000 }
+    );
+  }
+
+  function refreshToday() {
+    api('check', { token: token }, function (res) {
+      if (res.ok) { applyRole(res.role); enterMain(res.name, res.today || []); }
+    });
+  }
+
+  function punch(type) {
+    var st = document.getElementById('p-status');
+    setButtons(false);
+    st.className = 'status'; st.textContent = '';
+    getLocation(function (lat, lng) {
+      api('record', { token: token, type: type, lat: lat, lng: lng, ip: clientIp }, function (res) {
+        setButtons(true);
+        if (!res.ok) {
+          st.className = 'status err'; st.textContent = res.msg;
+          if (res.msg && res.msg.indexOf('만료') >= 0) { logout(); }
+          if (res.msg && res.msg.indexOf('변경') >= 0) { show('v-changepw'); }
+          return;
+        }
+        st.className = 'status ok';
+        st.textContent = type + ' 완료 · ' + res.time;
+        todayData.push({ time: res.time, type: type });
+        renderToday(todayData);
+      }, function () {
+        setButtons(true);
+        st.className = 'status err'; st.textContent = '연결에 실패했습니다. 다시 시도해 주세요.';
+      });
+    });
+  }
+
+  function setButtons(on) {
+    document.getElementById('b-in').disabled = !on;
+    document.getElementById('b-out').disabled = !on;
+  }
+
+  function getLocation(cb) {
+    // 미리 받아둔 위치가 5분 이내면 대기 없이 바로 사용
+    if (cachedLoc && Date.now() - cachedLoc.ts < 5 * 60 * 1000) {
+      cb(cachedLoc.lat, cachedLoc.lng);
+      prefetchLocation(); // 다음을 위해 갱신
+      return;
+    }
+    var done = false;
+    var finish = function (lat, lng) { if (!done) { done = true; cb(lat, lng); } };
+    if (!navigator.geolocation) { finish(null, null); return; }
+    setTimeout(function () { finish(null, null); }, 1500);
+    navigator.geolocation.getCurrentPosition(
+      function (pos) {
+        cachedLoc = { lat: pos.coords.latitude, lng: pos.coords.longitude, ts: Date.now() };
+        finish(pos.coords.latitude, pos.coords.longitude);
+      },
+      function () { finish(null, null); },
+      { enableHighAccuracy: true, timeout: 1400, maximumAge: 120000 }
+    );
+  }
+
+  function renderToday(list) {
+    var ul = document.getElementById('today-list');
+    ul.innerHTML = '';
+    if (!list || list.length === 0) {
+      ul.innerHTML = '<li class="empty">아직 기록이 없습니다.</li>';
+      return;
+    }
+    list.forEach(function (r) {
+      var li = document.createElement('li');
+      li.className = 'rowline';
+      li.innerHTML = '<span class="tag' + (r.type === '출근' ? ' i' : '') + '"></span><span class="t"></span>';
+      li.children[0].textContent = r.type;
+      li.children[1].textContent = r.time;
+      ul.appendChild(li);
+    });
+  }
+
+  /* ── 관리자: 오늘 현황 + 직원 목록 ── */
+  function loadAdminToday() {
+    var ul = document.getElementById('adm-today-list');
+    ul.innerHTML = '<li class="empty">불러오는 중…</li>';
+    api('admToday', { token: token }, function (res) {
+        if (!res.ok) { ul.innerHTML = '<li class="empty">' + res.msg + '</li>'; return; }
+        fillEmpSelects(res.employees);
+        ul.innerHTML = '';
+        if (res.rows.length === 0) { ul.innerHTML = '<li class="empty">재직 중인 직원이 없습니다.</li>'; return; }
+        res.rows.forEach(function (r) {
+          var li = document.createElement('li');
+          li.className = 'rowline';
+          var right = r.inT
+            ? (r.inT + ' ~ ' + (r.outT || '근무 중'))
+            : '';
+          li.innerHTML = '<span></span><span class="t"></span>';
+          li.children[0].textContent = r.name;
+          if (!r.inT) {
+            li.children[1].innerHTML = '<span class="warn">미출근</span>';
+          } else {
+            li.children[1].textContent = right;
+          }
+          ul.appendChild(li);
+        });
+      }, function () { ul.innerHTML = '<li class="empty">불러오기에 실패했습니다.</li>'; });
+  }
+
+  function fillEmpSelects(emps) {
+    empListLoaded = true;
+    var q = document.getElementById('q-emp');
+    var r = document.getElementById('r-emp');
+    q.innerHTML = '<option value="">전체</option>';
+    r.innerHTML = '';
+    emps.forEach(function (e) {
+      var o1 = document.createElement('option');
+      o1.value = e.id; o1.textContent = e.name + ' (' + e.id + ')';
+      q.appendChild(o1);
+      var o2 = o1.cloneNode(true);
+      r.appendChild(o2);
+    });
+  }
+
+  /* ── 관리자: 기록 조회 ── */
+  function queryRecords() {
+    var ul = document.getElementById('adm-rec-list');
+    ul.innerHTML = '<li class="empty">조회 중…</li>';
+    api('admRecords', {
+        token: token,
+        empId: document.getElementById('q-emp').value,
+        from: document.getElementById('q-from').value,
+        to: document.getElementById('q-to').value
+      }, function (res) {
+        if (!res.ok) { ul.innerHTML = '<li class="empty">' + res.msg + '</li>'; return; }
+        ul.innerHTML = '';
+        if (res.rows.length === 0) { ul.innerHTML = '<li class="empty">해당 기간의 기록이 없습니다.</li>'; return; }
+        res.rows.forEach(function (r) {
+          var li = document.createElement('li');
+          li.className = 'rowline';
+          li.innerHTML = '<span></span><span class="tag' + (r.type === '출근' ? ' i' : '') + '"></span><span class="t"></span>';
+          li.children[0].textContent = r.name;
+          li.children[1].textContent = r.type;
+          li.children[2].textContent = r.time;
+          ul.appendChild(li);
+        });
+      }, function () { ul.innerHTML = '<li class="empty">조회에 실패했습니다.</li>'; });
+  }
+
+  /* ── 관리자: 퇴근 누락 ── */
+  function loadMissing() {
+    var ul = document.getElementById('adm-miss-list');
+    ul.innerHTML = '<li class="empty">불러오는 중…</li>';
+    api('admMissing', { token: token }, function (res) {
+        if (!res.ok) { ul.innerHTML = '<li class="empty">' + res.msg + '</li>'; return; }
+        ul.innerHTML = '';
+        if (res.rows.length === 0) { ul.innerHTML = '<li class="empty">누락 건이 없습니다.</li>'; return; }
+        res.rows.forEach(function (r) {
+          var li = document.createElement('li');
+          li.className = 'rowline';
+          li.innerHTML = '<span></span><span class="t"></span>';
+          li.children[0].textContent = r.date + ' · ' + r.name;
+          li.children[1].textContent = '출근 ' + r.inT + ' → 퇴근 없음';
+          ul.appendChild(li);
+        });
+      }, function () { ul.innerHTML = '<li class="empty">불러오기에 실패했습니다.</li>'; });
+  }
+
+  /* ── 관리자: 비번 초기화 ── */
+  function resetPw() {
+    var sel = document.getElementById('r-emp');
+    var msg = document.getElementById('adm-pw-msg');
+    if (!sel.value) { msg.className = 'adm-msg err'; msg.textContent = '직원을 선택해 주세요.'; return; }
+    var name = sel.options[sel.selectedIndex].textContent;
+    if (!confirm(name + ' 의 비밀번호를 1234로 초기화할까요?')) return;
+    msg.className = 'adm-msg'; msg.textContent = '처리 중…';
+    api('admResetPw', { token: token, empId: sel.value }, function (res) {
+      msg.className = 'adm-msg ' + (res.ok ? 'ok' : 'err');
+      msg.textContent = res.msg;
+    }, function () { msg.className = 'adm-msg err'; msg.textContent = '처리에 실패했습니다.'; });
+  }
+
+  /* ── 로그아웃 ── */
+  function logout() {
+    localStorage.removeItem(TOKEN_KEY); token = ''; myRole = '';
+    localStorage.removeItem('att_name');
+    localStorage.removeItem('att_role');
+    todayData = [];
+    empListLoaded = false;
+    document.getElementById('f-pw').value = '';
+    document.getElementById('tabbar').classList.remove('show');
+    show('v-login');
+  }
+
+  /* ── IP는 참고용 (실패 무시) ── */
+  fetch('https://api.ipify.org?format=json')
+    .then(function (r) { return r.json(); })
+    .then(function (d) { clientIp = d.ip || ''; })
+    .catch(function () {});
+
+  // 서비스워커 등록 — 두 번째 실행부터 화면을 캐시에서 즉시 로드
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(function () {});
+  }
+
+  boot();
+</script>
+</body>
+</html>
