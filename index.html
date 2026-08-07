@@ -88,6 +88,27 @@
     margin-left: 8px; padding: 5px 10px; font-size: 12.5px; font-weight: 600;
     background: var(--accent-soft); color: var(--accent); border-radius: 8px; white-space: nowrap;
   }
+  .fixbtn:disabled, .mini:disabled, .primary:disabled { opacity: .55; }
+
+  /* 상태 배지 */
+  .badge {
+    display: inline-block; margin-left: 6px; padding: 2px 8px;
+    font-size: 11.5px; font-weight: 700; border-radius: 20px; vertical-align: 1px;
+  }
+  .badge.admin { background: var(--accent-soft); color: var(--accent); }
+  .badge.staff { background: #eef1f0; color: var(--sub); }
+  .badge.gone  { background: #fdecea; color: var(--danger); }
+
+  /* 진행 중 스피너 */
+  .spin {
+    display: inline-block; width: 14px; height: 14px; vertical-align: -2px;
+    border: 2px solid rgba(0,0,0,.15); border-top-color: var(--accent);
+    border-radius: 50%; animation: sp .7s linear infinite;
+  }
+  button .spin { border-color: rgba(255,255,255,.4); border-top-color: #fff; }
+  .fixbtn .spin { border-color: rgba(15,110,86,.25); border-top-color: var(--accent); width: 11px; height: 11px; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+  .loading-line { color: var(--sub); font-size: 14px; padding: 10px 4px; }
   .warn { color: var(--danger); font-weight: 600; }
 
   /* 관리자 화면 */
@@ -132,7 +153,7 @@
     <input id="f-id" inputmode="numeric" maxlength="8" placeholder="12345678" autocomplete="username">
     <label for="f-pw">비밀번호</label>
     <input id="f-pw" type="password" placeholder="초기 비밀번호 1234" autocomplete="current-password">
-    <button class="primary" onclick="login()">로그인</button>
+    <button id="btn-login" class="primary" onclick="login()">로그인</button>
     <div id="login-msg" class="msg"></div>
   </div>
 
@@ -147,7 +168,7 @@
     <input id="f-npw" type="password" autocomplete="new-password">
     <label for="f-npw2">새 비밀번호 확인</label>
     <input id="f-npw2" type="password" autocomplete="new-password">
-    <button class="primary" onclick="changePw()">변경하고 시작하기</button>
+    <button id="btn-chpw" class="primary" onclick="changePw()">변경하고 시작하기</button>
     <div id="pw-msg" class="msg"></div>
   </div>
 
@@ -228,7 +249,7 @@
     <div id="sec-monthly" class="sec">
       <h2>월별 집계</h2>
       <input type="month" id="m-month">
-      <button class="mini" onclick="loadMonthly()">조회</button>
+      <button id="btn-monthly" class="mini" onclick="loadMonthly()">조회</button>
       <ul id="adm-month-totals" style="margin-top:14px"></ul>
       <p class="meta" id="adm-month-hint" style="display:none;margin-top:10px">직원을 누르면 일별 상세가 표시됩니다.</p>
       <ul id="adm-month-details" style="margin-top:6px"></ul>
@@ -247,7 +268,7 @@
       <input id="e-name">
       <label>권한</label>
       <select id="e-role"><option>직원</option><option>관리자</option></select>
-      <button class="mini" onclick="addEmp()">추가 (초기 비밀번호 1234)</button>
+      <button id="btn-addemp" class="mini" onclick="addEmp()">추가 (초기 비밀번호 1234)</button>
       <div id="adm-add-msg" class="adm-msg"></div>
 
       <h2 style="margin-top:28px">수동 기록 추가</h2>
@@ -259,7 +280,7 @@
         <select id="m-type"><option>출근</option><option>퇴근</option></select>
         <input type="time" id="m-time">
       </div>
-      <button class="mini" onclick="addManualRecord()">기록 추가</button>
+      <button id="btn-manual" class="mini" onclick="addManualRecord()">기록 추가</button>
       <div id="adm-manual-msg" class="adm-msg"></div>
       <p class="meta" style="margin-top:10px;line-height:1.6">
         추가된 기록은 시트에 '정정' 상태와 처리자 이름이 함께 남습니다.
@@ -271,7 +292,7 @@
       <h2>비밀번호 초기화</h2>
       <label>직원 선택</label>
       <select id="r-emp"></select>
-      <button class="mini red" onclick="resetPw()">1234로 초기화</button>
+      <button id="btn-resetpw" class="mini red" onclick="resetPw()">1234로 초기화</button>
       <div id="adm-pw-msg" class="adm-msg"></div>
       <p style="font-size:13px;color:var(--sub);margin-top:12px;line-height:1.6">
         초기화하면 해당 직원의 모든 기기에서 로그아웃되며, 초기 비밀번호(1234)로
@@ -287,6 +308,20 @@
 <script>
   // ★ 배포 후 Apps Script 웹앱 URL(/exec)로 교체할 것 ★
   var API_URL = 'https://script.google.com/macros/s/AKfycbzOCmDyGx1dKH2TVqsRYoHtsXlF3ivGMBsv99OqY1NiTEAMs_KvAIZ9CBE_Oky5m6463g/exec';
+
+  /* 버튼을 처리 중 상태로 바꿨다가 복구하는 헬퍼 */
+  function busy(btn) {
+    if (!btn) return function () {};
+    var orig = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spin"></span>';
+    return function () { btn.disabled = false; btn.innerHTML = orig; };
+  }
+
+  /* 목록에 로딩 스피너 표시 */
+  function listLoading(ul, text) {
+    ul.innerHTML = '<li class="loading-line"><span class="spin"></span>&nbsp; ' + (text || '불러오는 중') + '…</li>';
+  }
 
   /* 백엔드 doPost로 요청을 보내는 공용 함수 */
   function api(action, params, onOk, onFail) {
@@ -378,7 +413,9 @@
     var msg = document.getElementById('login-msg');
     if (!id || !pw) { msg.textContent = '아이디와 비밀번호를 입력해 주세요.'; return; }
     msg.textContent = '';
+    var done = busy(document.getElementById('btn-login'));
     api('login', { id: id, pw: pw }, function (res) {
+      done();
       if (!res.ok) { msg.textContent = res.msg; return; }
       token = res.token;
       localStorage.setItem(TOKEN_KEY, token);
@@ -387,7 +424,7 @@
       applyRole(res.role);
       if (res.mustChange) { document.getElementById('u-name').textContent = res.name; show('v-changepw'); }
       else { enterMain(res.name, []); refreshToday(); }
-    }, function () { msg.textContent = '연결에 실패했습니다. 잠시 후 다시 시도해 주세요.'; });
+    }, function () { done(); msg.textContent = '연결에 실패했습니다. 잠시 후 다시 시도해 주세요.'; });
   }
 
   /* ── 비밀번호 변경 ── */
@@ -397,11 +434,13 @@
     var msg = document.getElementById('pw-msg');
     if (a !== b) { msg.textContent = '두 입력이 서로 다릅니다.'; return; }
     msg.textContent = '';
+    var done = busy(document.getElementById('btn-chpw'));
     api('changepw', { token: token, newPw: a }, function (res) {
+      done();
       if (!res.ok) { msg.textContent = res.msg; return; }
       refreshToday();
       show('v-main');
-    }, function () { msg.textContent = '연결에 실패했습니다.'; });
+    }, function () { done(); msg.textContent = '연결에 실패했습니다.'; });
   }
 
   /* ── 메인 ── */
@@ -528,7 +567,7 @@
   /* ── 관리자: 오늘 현황 + 직원 목록 ── */
   function loadAdminToday() {
     var ul = document.getElementById('adm-today-list');
-    ul.innerHTML = '<li class="empty">불러오는 중…</li>';
+    listLoading(ul);
     api('admToday', { token: token }, function (res) {
         if (!res.ok) { ul.innerHTML = '<li class="empty">' + res.msg + '</li>'; return; }
         fillEmpSelects(res.employees);
@@ -572,7 +611,7 @@
   /* ── 관리자: 기록 조회 ── */
   function queryRecords() {
     var ul = document.getElementById('adm-rec-list');
-    ul.innerHTML = '<li class="empty">조회 중…</li>';
+    listLoading(ul, '조회 중');
     api('admRecords', {
         token: token,
         empId: document.getElementById('q-emp').value,
@@ -597,7 +636,7 @@
   /* ── 관리자: 퇴근 누락 ── */
   function loadMissing() {
     var ul = document.getElementById('adm-miss-list');
-    ul.innerHTML = '<li class="empty">불러오는 중…</li>';
+    listLoading(ul);
     api('admMissing', { token: token }, function (res) {
         if (!res.ok) { ul.innerHTML = '<li class="empty">' + res.msg + '</li>'; return; }
         ul.innerHTML = '';
@@ -637,7 +676,7 @@
     var dul = document.getElementById('adm-month-details');
     var hint = document.getElementById('adm-month-hint');
     if (!ym) { tul.innerHTML = '<li class="empty">월을 선택해 주세요.</li>'; return; }
-    tul.innerHTML = '<li class="empty">집계 중…</li>'; dul.innerHTML = ''; hint.style.display = 'none';
+    listLoading(tul, '집계 중'); dul.innerHTML = ''; hint.style.display = 'none';
     api('admMonthly', { token: token, ym: ym }, function (res) {
       if (!res.ok) { tul.innerHTML = '<li class="empty">' + res.msg + '</li>'; return; }
       monthDetails = res.details;
@@ -688,39 +727,55 @@
   /* ── 관리자: 직원 관리 ── */
   function loadEmpList() {
     var ul = document.getElementById('adm-emp-list');
-    ul.innerHTML = '<li class="empty">불러오는 중…</li>';
+    listLoading(ul);
     api('admEmpList', { token: token }, function (res) {
       if (!res.ok) { ul.innerHTML = '<li class="empty">' + res.msg + '</li>'; return; }
       ul.innerHTML = '';
       res.rows.forEach(function (r) {
         var li = document.createElement('li');
         li.className = 'rowline';
+
+        // 왼쪽: 이름 + (사번) + 현재 상태 배지
         var left = document.createElement('span');
         left.textContent = r.name + ' ';
         var meta = document.createElement('span');
         meta.className = 'meta';
-        meta.textContent = '(' + r.id + ') ' + r.role + (r.active ? '' : ' · 퇴사');
+        meta.textContent = '(' + r.id + ')';
         left.appendChild(meta);
+        var roleBadge = document.createElement('span');
+        roleBadge.className = 'badge ' + (r.role === '관리자' ? 'admin' : 'staff');
+        roleBadge.textContent = r.role;
+        left.appendChild(roleBadge);
+        if (!r.active) {
+          var goneBadge = document.createElement('span');
+          goneBadge.className = 'badge gone';
+          goneBadge.textContent = '퇴사';
+          left.appendChild(goneBadge);
+        }
+
+        // 오른쪽: 동작 버튼 (현재 상태는 배지가, 버튼은 실행할 동작만)
         var right = document.createElement('span');
         var b1 = document.createElement('button');
         b1.className = 'fixbtn';
-        b1.textContent = r.active ? '퇴사' : '복직';
+        b1.textContent = r.active ? '퇴사 처리' : '복직 처리';
         b1.onclick = function () {
           if (!confirm(r.name + ' 님을 ' + (r.active ? '퇴사' : '복직') + ' 처리할까요?' +
               (r.active ? '\n(모든 기기에서 로그아웃됩니다)' : ''))) return;
+          var done = busy(b1);
           api('admSetActive', { token: token, empId: r.id, active: !r.active }, function (res2) {
-            showEmpMsg(res2); if (res2.ok) loadEmpList();
-          });
+            done(); showEmpMsg(res2); if (res2.ok) loadEmpList();
+          }, function () { done(); showEmpMsg({ ok: false, msg: '처리에 실패했습니다.' }); });
         };
         var b2 = document.createElement('button');
         b2.className = 'fixbtn';
-        b2.textContent = r.role === '관리자' ? '직원으로' : '관리자로';
+        b2.textContent = '권한 변경';
         b2.onclick = function () {
           var to = r.role === '관리자' ? '직원' : '관리자';
-          if (!confirm(r.name + ' 님의 권한을 ' + to + '(으)로 바꿀까요?')) return;
+          if (!confirm(r.name + ' 님의 권한을 [' + r.role + '] → [' + to + '](으)로 바꿀까요?')) return;
+          var done = busy(b2);
           api('admSetRole', { token: token, empId: r.id, role: to }, function (res2) {
-            showEmpMsg(res2); if (res2.ok) loadEmpList();
-          });
+            done(); showEmpMsg(res2); if (res2.ok) loadEmpList();
+          }, function () { done(); showEmpMsg({ ok: false, msg: '처리에 실패했습니다.' }); });
         };
         right.appendChild(b1); right.appendChild(b2);
         li.appendChild(left); li.appendChild(right);
@@ -741,8 +796,10 @@
     var role = document.getElementById('e-role').value;
     var msg = document.getElementById('adm-add-msg');
     if (!id || !name) { msg.className = 'adm-msg err'; msg.textContent = '사번과 이름을 입력해 주세요.'; return; }
-    msg.className = 'adm-msg'; msg.textContent = '등록 중…';
+    msg.className = 'adm-msg'; msg.textContent = '';
+    var done = busy(document.getElementById('btn-addemp'));
     api('admAddEmp', { token: token, empId: id, name: name, role: role }, function (res) {
+      done();
       msg.className = 'adm-msg ' + (res.ok ? 'ok' : 'err');
       msg.textContent = res.msg;
       if (res.ok) {
@@ -751,7 +808,7 @@
         empListLoaded = false; // 직원 select 갱신 유도
         loadEmpList();
       }
-    }, function () { msg.className = 'adm-msg err'; msg.textContent = '등록에 실패했습니다.'; });
+    }, function () { done(); msg.className = 'adm-msg err'; msg.textContent = '등록에 실패했습니다.'; });
   }
 
   function addManualRecord() {
@@ -762,11 +819,13 @@
     var time = document.getElementById('m-time').value;
     if (!empId) { msg.className = 'adm-msg err'; msg.textContent = '직원 목록이 비어있습니다. [오늘 현황]을 한 번 열어주세요.'; return; }
     if (!date || !time) { msg.className = 'adm-msg err'; msg.textContent = '날짜와 시각을 입력해 주세요.'; return; }
-    msg.className = 'adm-msg'; msg.textContent = '추가 중…';
+    msg.className = 'adm-msg'; msg.textContent = '';
+    var done = busy(document.getElementById('btn-manual'));
     api('admAddRecord', { token: token, empId: empId, date: date, time: time, type: type }, function (res) {
+      done();
       msg.className = 'adm-msg ' + (res.ok ? 'ok' : 'err');
       msg.textContent = res.msg;
-    }, function () { msg.className = 'adm-msg err'; msg.textContent = '추가에 실패했습니다.'; });
+    }, function () { done(); msg.className = 'adm-msg err'; msg.textContent = '추가에 실패했습니다.'; });
   }
 
   /* ── 관리자: 비번 초기화 ── */
@@ -776,11 +835,13 @@
     if (!sel.value) { msg.className = 'adm-msg err'; msg.textContent = '직원을 선택해 주세요.'; return; }
     var name = sel.options[sel.selectedIndex].textContent;
     if (!confirm(name + ' 의 비밀번호를 1234로 초기화할까요?')) return;
-    msg.className = 'adm-msg'; msg.textContent = '처리 중…';
+    msg.className = 'adm-msg'; msg.textContent = '';
+    var done = busy(document.getElementById('btn-resetpw'));
     api('admResetPw', { token: token, empId: sel.value }, function (res) {
+      done();
       msg.className = 'adm-msg ' + (res.ok ? 'ok' : 'err');
       msg.textContent = res.msg;
-    }, function () { msg.className = 'adm-msg err'; msg.textContent = '처리에 실패했습니다.'; });
+    }, function () { done(); msg.className = 'adm-msg err'; msg.textContent = '처리에 실패했습니다.'; });
   }
 
   /* ── 로그아웃 ── */
