@@ -80,9 +80,12 @@
   .today h2, .sec h2 { font-size: 14px; color: var(--sub); font-weight: 600; margin-bottom: 10px; }
   ul { list-style: none; }
   .rowline {
-    display: flex; justify-content: space-between; gap: 8px; padding: 11px 4px;
+    display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; gap: 6px 8px; padding: 11px 4px;
     border-bottom: 1px solid var(--line); font-size: 15px;
   }
+  .rowline > span:first-child { flex: 1 1 auto; min-width: 0; word-break: break-all; }
+  .rowline > span:last-child { flex: 0 0 auto; white-space: nowrap; margin-left: auto; }
   .rowline .t { font-variant-numeric: tabular-nums; color: var(--sub); white-space: nowrap; }
   .empty { color: var(--sub); font-size: 14px; padding: 8px 4px; }
   .tag { font-weight: 600; }
@@ -240,6 +243,15 @@
     <div class="today">
       <h2>오늘 기록</h2>
       <ul id="today-list"></ul>
+    </div>
+
+    <div class="today" style="margin-top:26px">
+      <h2>올해 연차 계산</h2>
+      <div class="range">
+        <input id="lv-total" inputmode="decimal" placeholder="부여받은 연차 개수 입력">
+        <button id="btn-lvcalc" class="mini" style="margin-top:0;flex:0 0 auto;padding:12px 20px" onclick="calcLeave()">계산</button>
+      </div>
+      <div id="leave-info" class="meta" style="margin-top:10px"></div>
     </div>
 
     <div class="foot"><button class="linkbtn" onclick="logout()">로그아웃</button></div>
@@ -676,6 +688,20 @@
     document.getElementById('b-in').disabled = !on;
     document.getElementById('b-out').disabled = !on;
     if (on) updatePunchButtons(); // 잠금 해제 시에도 출근 완료 상태는 유지
+  }
+
+  /* 올해 연차 계산 — 입력한 부여 개수 기준, 사용량은 서버에서 즉석 집계 (저장 안 함) */
+  function calcLeave() {
+    var el = document.getElementById('leave-info');
+    var total = parseFloat(document.getElementById('lv-total').value);
+    if (isNaN(total) || total < 0) { el.textContent = '부여받은 연차 개수를 숫자로 입력해 주세요.'; return; }
+    var done = busy(document.getElementById('btn-lvcalc'));
+    api('myVac', { token: token }, function (res) {
+      done();
+      if (!res.ok) { el.textContent = res.msg; return; }
+      var remain = Math.round((total - res.used) * 10) / 10;
+      el.textContent = res.year + '년 사용 ' + res.used + '일 → 잔여 ' + remain + '일 (부여 ' + total + '일 기준)';
+    }, function () { done(); el.textContent = '조회에 실패했습니다. 다시 시도해 주세요.'; });
   }
 
   /* 오늘 출근이 이미 있으면 출근 버튼 잠금 */
