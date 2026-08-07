@@ -83,14 +83,20 @@
   .empty { color: var(--sub); font-size: 14px; padding: 8px 4px; }
   .tag { font-weight: 600; }
   .tag.i { color: var(--accent); }
+  .pending { opacity: .5; }
+  .fixbtn {
+    margin-left: 8px; padding: 5px 10px; font-size: 12.5px; font-weight: 600;
+    background: var(--accent-soft); color: var(--accent); border-radius: 8px; white-space: nowrap;
+  }
   .warn { color: var(--danger); font-weight: 600; }
 
   /* 관리자 화면 */
-  .seg { display: flex; gap: 6px; margin-bottom: 20px; }
+  .seg { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 20px; }
   .seg button {
-    flex: 1; padding: 10px 0; font-size: 13.5px; font-weight: 600;
+    flex: 1 1 30%; padding: 10px 0; font-size: 13.5px; font-weight: 600;
     background: #fff; border: 1px solid var(--line); border-radius: 10px; color: var(--sub);
   }
+  .meta { font-size: 12.5px; color: var(--sub); }
   .seg button.on { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
   .sec { display: none; }
   .sec.on { display: block; }
@@ -181,6 +187,8 @@
       <button id="sg-today"   class="on" onclick="gotoSec('today')">오늘 현황</button>
       <button id="sg-records" onclick="gotoSec('records')">기록 조회</button>
       <button id="sg-missing" onclick="gotoSec('missing')">퇴근 누락</button>
+      <button id="sg-monthly" onclick="gotoSec('monthly')">월별 집계</button>
+      <button id="sg-emp"     onclick="gotoSec('emp')">직원 관리</button>
       <button id="sg-pw"      onclick="gotoSec('pw')">비번 초기화</button>
     </div>
 
@@ -211,7 +219,50 @@
       <ul id="adm-miss-list"><li class="empty">불러오는 중…</li></ul>
       <button class="mini" onclick="loadMissing()">새로고침</button>
       <p style="font-size:13px;color:var(--sub);margin-top:12px;line-height:1.6">
-        정정은 시트의 기록 탭에서 행을 추가하고 비고에 사유를 남기는 방식으로 처리합니다.
+        [정정]을 누르면 입력한 시각으로 퇴근 기록이 추가되고, 시트에는 '정정' 상태와
+        처리자가 함께 남습니다.
+      </p>
+    </div>
+
+    <!-- 월별 집계 -->
+    <div id="sec-monthly" class="sec">
+      <h2>월별 집계</h2>
+      <input type="month" id="m-month">
+      <button class="mini" onclick="loadMonthly()">조회</button>
+      <ul id="adm-month-totals" style="margin-top:14px"></ul>
+      <p class="meta" id="adm-month-hint" style="display:none;margin-top:10px">직원을 누르면 일별 상세가 표시됩니다.</p>
+      <ul id="adm-month-details" style="margin-top:6px"></ul>
+    </div>
+
+    <!-- 직원 관리 -->
+    <div id="sec-emp" class="sec">
+      <h2>직원 목록</h2>
+      <ul id="adm-emp-list"><li class="empty">불러오는 중…</li></ul>
+      <div id="adm-emp-msg" class="adm-msg"></div>
+
+      <h2 style="margin-top:28px">직원 추가</h2>
+      <label>사번 (전화번호 뒤 8자리)</label>
+      <input id="e-id" inputmode="numeric" maxlength="12">
+      <label>이름</label>
+      <input id="e-name">
+      <label>권한</label>
+      <select id="e-role"><option>직원</option><option>관리자</option></select>
+      <button class="mini" onclick="addEmp()">추가 (초기 비밀번호 1234)</button>
+      <div id="adm-add-msg" class="adm-msg"></div>
+
+      <h2 style="margin-top:28px">수동 기록 추가</h2>
+      <label>직원</label>
+      <select id="m-emp"></select>
+      <label>날짜 · 구분 · 시각</label>
+      <input type="date" id="m-date">
+      <div class="range" style="margin-top:8px">
+        <select id="m-type"><option>출근</option><option>퇴근</option></select>
+        <input type="time" id="m-time">
+      </div>
+      <button class="mini" onclick="addManualRecord()">기록 추가</button>
+      <div id="adm-manual-msg" class="adm-msg"></div>
+      <p class="meta" style="margin-top:10px;line-height:1.6">
+        추가된 기록은 시트에 '정정' 상태와 처리자 이름이 함께 남습니다.
       </p>
     </div>
 
@@ -223,7 +274,8 @@
       <button class="mini red" onclick="resetPw()">1234로 초기화</button>
       <div id="adm-pw-msg" class="adm-msg"></div>
       <p style="font-size:13px;color:var(--sub);margin-top:12px;line-height:1.6">
-        초기화하면 해당 직원은 다음 로그인 때 비밀번호를 새로 설정하게 됩니다.
+        초기화하면 해당 직원의 모든 기기에서 로그아웃되며, 초기 비밀번호(1234)로
+        다시 로그인한 뒤 새 비밀번호를 설정하게 됩니다.
       </p>
     </div>
 
@@ -234,7 +286,7 @@
 
 <script>
   // ★ 배포 후 Apps Script 웹앱 URL(/exec)로 교체할 것 ★
-  var API_URL = 'https://script.google.com/macros/s/AKfycbzOCmDyGx1dKH2TVqsRYoHtsXlF3ivGMBsv99OqY1NiTEAMs_KvAIZ9CBE_Oky5m6463g/exec';
+  var API_URL = 'https://script.google.com/macros/s/여기에_배포_ID/exec';
 
   /* 백엔드 doPost로 요청을 보내는 공용 함수 */
   function api(action, params, onOk, onFail) {
@@ -268,11 +320,17 @@
   }
 
   function gotoSec(s) {
-    ['today','records','missing','pw'].forEach(function (k) {
+    ['today','records','missing','monthly','emp','pw'].forEach(function (k) {
       document.getElementById('sec-' + k).classList.toggle('on', k === s);
       document.getElementById('sg-' + k).classList.toggle('on', k === s);
     });
     if (s === 'missing') loadMissing();
+    if (s === 'emp') loadEmpList();
+    if (s === 'monthly' && !document.getElementById('m-month').value) {
+      var n = new Date();
+      document.getElementById('m-month').value =
+        n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0');
+    }
   }
 
   /* ── 시계 ── */
@@ -379,26 +437,49 @@
 
   function punch(type) {
     var st = document.getElementById('p-status');
+
+    // ① 누르는 즉시 화면에 반영 (낙관적 UI) — 실제 확정 시각은 서버 응답으로 교체됨
+    var n = new Date();
+    var p = function (x) { return String(x).padStart(2, '0'); };
+    var entry = { time: p(n.getHours()) + ':' + p(n.getMinutes()), type: type, pending: true };
+    todayData.push(entry);
+    renderToday(todayData);
+    st.className = 'status ok';
+    st.textContent = type + ' ✓ 처리 중…';
+
+    // ② 서버 전송 (버튼은 잠깐만 잠갔다 바로 해제 — 연타 오작동 방지용 0.8초)
     setButtons(false);
-    st.className = 'status'; st.textContent = '';
+    setTimeout(function () { setButtons(true); }, 800);
+
     getLocation(function (lat, lng) {
       api('record', { token: token, type: type, lat: lat, lng: lng, ip: clientIp }, function (res) {
-        setButtons(true);
         if (!res.ok) {
-          st.className = 'status err'; st.textContent = res.msg;
+          // 실패 → 방금 항목 제거 + 알림
+          removeEntry(entry);
+          st.className = 'status err'; st.textContent = res.msg + ' (기록되지 않았습니다)';
+          if (navigator.vibrate) navigator.vibrate(200);
           if (res.msg && res.msg.indexOf('만료') >= 0) { logout(); }
           if (res.msg && res.msg.indexOf('변경') >= 0) { show('v-changepw'); }
           return;
         }
+        // 성공 → 서버 확정 시각으로 교체
+        entry.time = res.time;
+        entry.pending = false;
+        renderToday(todayData);
         st.className = 'status ok';
         st.textContent = type + ' 완료 · ' + res.time;
-        todayData.push({ time: res.time, type: type });
-        renderToday(todayData);
       }, function () {
-        setButtons(true);
-        st.className = 'status err'; st.textContent = '연결에 실패했습니다. 다시 시도해 주세요.';
+        removeEntry(entry);
+        st.className = 'status err'; st.textContent = '연결 실패 — 기록되지 않았습니다. 다시 눌러주세요.';
+        if (navigator.vibrate) navigator.vibrate(200);
       });
     });
+  }
+
+  function removeEntry(entry) {
+    var i = todayData.indexOf(entry);
+    if (i >= 0) todayData.splice(i, 1);
+    renderToday(todayData);
   }
 
   function setButtons(on) {
@@ -436,10 +517,10 @@
     }
     list.forEach(function (r) {
       var li = document.createElement('li');
-      li.className = 'rowline';
+      li.className = 'rowline' + (r.pending ? ' pending' : '');
       li.innerHTML = '<span class="tag' + (r.type === '출근' ? ' i' : '') + '"></span><span class="t"></span>';
       li.children[0].textContent = r.type;
-      li.children[1].textContent = r.time;
+      li.children[1].textContent = r.time + (r.pending ? ' …' : '');
       ul.appendChild(li);
     });
   }
@@ -475,14 +556,16 @@
     empListLoaded = true;
     var q = document.getElementById('q-emp');
     var r = document.getElementById('r-emp');
+    var m = document.getElementById('m-emp');
     q.innerHTML = '<option value="">전체</option>';
     r.innerHTML = '';
+    m.innerHTML = '';
     emps.forEach(function (e) {
       var o1 = document.createElement('option');
       o1.value = e.id; o1.textContent = e.name + ' (' + e.id + ')';
       q.appendChild(o1);
-      var o2 = o1.cloneNode(true);
-      r.appendChild(o2);
+      r.appendChild(o1.cloneNode(true));
+      m.appendChild(o1.cloneNode(true));
     });
   }
 
@@ -524,10 +607,166 @@
           li.className = 'rowline';
           li.innerHTML = '<span></span><span class="t"></span>';
           li.children[0].textContent = r.date + ' · ' + r.name;
-          li.children[1].textContent = '출근 ' + r.inT + ' → 퇴근 없음';
+          var right = li.children[1];
+          right.textContent = '출근 ' + r.inT + ' → 없음';
+          var btn = document.createElement('button');
+          btn.className = 'fixbtn';
+          btn.textContent = '정정';
+          btn.onclick = function () { fixMissing(r); };
+          right.appendChild(btn);
           ul.appendChild(li);
         });
       }, function () { ul.innerHTML = '<li class="empty">불러오기에 실패했습니다.</li>'; });
+  }
+
+  /* 퇴근 누락 정정: 시각 입력받아 서버에 정정 기록 추가 */
+  function fixMissing(r) {
+    var t = prompt(r.name + ' · ' + r.date + '\n퇴근 시각을 입력하세요 (예: 18:30)', '18:00');
+    if (t === null) return;
+    api('admFixMissing', { token: token, empId: r.id, date: r.date, time: t.trim() }, function (res) {
+      alert(res.msg);
+      if (res.ok) loadMissing();
+    }, function () { alert('처리에 실패했습니다. 다시 시도해 주세요.'); });
+  }
+
+  /* ── 관리자: 월별 집계 ── */
+  var monthDetails = [];
+  function loadMonthly() {
+    var ym = document.getElementById('m-month').value;
+    var tul = document.getElementById('adm-month-totals');
+    var dul = document.getElementById('adm-month-details');
+    var hint = document.getElementById('adm-month-hint');
+    if (!ym) { tul.innerHTML = '<li class="empty">월을 선택해 주세요.</li>'; return; }
+    tul.innerHTML = '<li class="empty">집계 중…</li>'; dul.innerHTML = ''; hint.style.display = 'none';
+    api('admMonthly', { token: token, ym: ym }, function (res) {
+      if (!res.ok) { tul.innerHTML = '<li class="empty">' + res.msg + '</li>'; return; }
+      monthDetails = res.details;
+      tul.innerHTML = '';
+      if (res.totals.length === 0) { tul.innerHTML = '<li class="empty">해당 월의 기록이 없습니다.</li>'; return; }
+      hint.style.display = 'block';
+      res.totals.forEach(function (t) {
+        var li = document.createElement('li');
+        li.className = 'rowline';
+        li.style.cursor = 'pointer';
+        li.innerHTML = '<span></span><span class="t"></span>';
+        li.children[0].textContent = t.name;
+        li.children[1].textContent = t.days + '일 · ' + t.hours + 'h' + (t.miss ? ' · 누락 ' + t.miss : '');
+        if (t.miss) li.children[1].innerHTML += ' <span class="warn">!</span>';
+        li.onclick = function () { renderMonthDetails(t.id, t.name); };
+        tul.appendChild(li);
+      });
+    }, function () { tul.innerHTML = '<li class="empty">집계에 실패했습니다.</li>'; });
+  }
+
+  function renderMonthDetails(id, name) {
+    var dul = document.getElementById('adm-month-details');
+    dul.innerHTML = '';
+    var rows = monthDetails.filter(function (d) { return d.id === id; });
+    if (rows.length === 0) { dul.innerHTML = '<li class="empty">기록 없음</li>'; return; }
+    var head = document.createElement('li');
+    head.className = 'rowline';
+    head.innerHTML = '<span class="tag"></span><span class="meta">일별 상세</span>';
+    head.children[0].textContent = name;
+    dul.appendChild(head);
+    rows.forEach(function (d) {
+      var li = document.createElement('li');
+      li.className = 'rowline';
+      li.innerHTML = '<span class="meta"></span><span class="t"></span>';
+      li.children[0].textContent = d.date;
+      if (d.status === '정상') {
+        li.children[1].textContent = d.inT + ' ~ ' + d.outT + ' · ' + d.hours + 'h';
+      } else if (d.status === '근무중') {
+        li.children[1].textContent = d.inT + ' ~ 근무 중';
+      } else {
+        li.children[1].innerHTML = '<span class="warn"></span>';
+        li.children[1].children[0].textContent = d.status + (d.inT ? ' (출근 ' + d.inT + ')' : '');
+      }
+      dul.appendChild(li);
+    });
+  }
+
+  /* ── 관리자: 직원 관리 ── */
+  function loadEmpList() {
+    var ul = document.getElementById('adm-emp-list');
+    ul.innerHTML = '<li class="empty">불러오는 중…</li>';
+    api('admEmpList', { token: token }, function (res) {
+      if (!res.ok) { ul.innerHTML = '<li class="empty">' + res.msg + '</li>'; return; }
+      ul.innerHTML = '';
+      res.rows.forEach(function (r) {
+        var li = document.createElement('li');
+        li.className = 'rowline';
+        var left = document.createElement('span');
+        left.textContent = r.name + ' ';
+        var meta = document.createElement('span');
+        meta.className = 'meta';
+        meta.textContent = '(' + r.id + ') ' + r.role + (r.active ? '' : ' · 퇴사');
+        left.appendChild(meta);
+        var right = document.createElement('span');
+        var b1 = document.createElement('button');
+        b1.className = 'fixbtn';
+        b1.textContent = r.active ? '퇴사' : '복직';
+        b1.onclick = function () {
+          if (!confirm(r.name + ' 님을 ' + (r.active ? '퇴사' : '복직') + ' 처리할까요?' +
+              (r.active ? '\n(모든 기기에서 로그아웃됩니다)' : ''))) return;
+          api('admSetActive', { token: token, empId: r.id, active: !r.active }, function (res2) {
+            showEmpMsg(res2); if (res2.ok) loadEmpList();
+          });
+        };
+        var b2 = document.createElement('button');
+        b2.className = 'fixbtn';
+        b2.textContent = r.role === '관리자' ? '직원으로' : '관리자로';
+        b2.onclick = function () {
+          var to = r.role === '관리자' ? '직원' : '관리자';
+          if (!confirm(r.name + ' 님의 권한을 ' + to + '(으)로 바꿀까요?')) return;
+          api('admSetRole', { token: token, empId: r.id, role: to }, function (res2) {
+            showEmpMsg(res2); if (res2.ok) loadEmpList();
+          });
+        };
+        right.appendChild(b1); right.appendChild(b2);
+        li.appendChild(left); li.appendChild(right);
+        ul.appendChild(li);
+      });
+    }, function () { ul.innerHTML = '<li class="empty">불러오기에 실패했습니다.</li>'; });
+  }
+
+  function showEmpMsg(res) {
+    var msg = document.getElementById('adm-emp-msg');
+    msg.className = 'adm-msg ' + (res.ok ? 'ok' : 'err');
+    msg.textContent = res.msg;
+  }
+
+  function addEmp() {
+    var id = document.getElementById('e-id').value.trim();
+    var name = document.getElementById('e-name').value.trim();
+    var role = document.getElementById('e-role').value;
+    var msg = document.getElementById('adm-add-msg');
+    if (!id || !name) { msg.className = 'adm-msg err'; msg.textContent = '사번과 이름을 입력해 주세요.'; return; }
+    msg.className = 'adm-msg'; msg.textContent = '등록 중…';
+    api('admAddEmp', { token: token, empId: id, name: name, role: role }, function (res) {
+      msg.className = 'adm-msg ' + (res.ok ? 'ok' : 'err');
+      msg.textContent = res.msg;
+      if (res.ok) {
+        document.getElementById('e-id').value = '';
+        document.getElementById('e-name').value = '';
+        empListLoaded = false; // 직원 select 갱신 유도
+        loadEmpList();
+      }
+    }, function () { msg.className = 'adm-msg err'; msg.textContent = '등록에 실패했습니다.'; });
+  }
+
+  function addManualRecord() {
+    var msg = document.getElementById('adm-manual-msg');
+    var empId = document.getElementById('m-emp').value;
+    var date = document.getElementById('m-date').value;
+    var type = document.getElementById('m-type').value;
+    var time = document.getElementById('m-time').value;
+    if (!empId) { msg.className = 'adm-msg err'; msg.textContent = '직원 목록이 비어있습니다. [오늘 현황]을 한 번 열어주세요.'; return; }
+    if (!date || !time) { msg.className = 'adm-msg err'; msg.textContent = '날짜와 시각을 입력해 주세요.'; return; }
+    msg.className = 'adm-msg'; msg.textContent = '추가 중…';
+    api('admAddRecord', { token: token, empId: empId, date: date, time: time, type: type }, function (res) {
+      msg.className = 'adm-msg ' + (res.ok ? 'ok' : 'err');
+      msg.textContent = res.msg;
+    }, function () { msg.className = 'adm-msg err'; msg.textContent = '추가에 실패했습니다.'; });
   }
 
   /* ── 관리자: 비번 초기화 ── */
