@@ -62,7 +62,11 @@
   .date { font-size: 14px; color: var(--sub); margin-bottom: 30px; }
 
   .btn-wrap { display: flex; gap: 12px; }
-  .punch { flex: 1; padding: 34px 0; font-size: 20px; font-weight: 700; border-radius: 18px; }
+  .pcol { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+  .pstat { min-height: 21px; font-size: 14px; text-align: center; }
+  .pstat.ok { color: var(--accent); font-weight: 600; }
+  .pstat.err { color: var(--danger); font-weight: 600; }
+  .punch { width: 100%; padding: 34px 0; font-size: 20px; font-weight: 700; border-radius: 18px; }
   .in  { background: var(--accent); color: #fff; }
   .out { background: #fff; color: var(--ink); border: 1.5px solid var(--ink); }
   .punch:disabled { opacity: .45; }
@@ -137,6 +141,31 @@
   .linkbtn { background: none; color: var(--sub); font-size: 13px; text-decoration: underline; }
 
   .center { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--sub); }
+
+  /* 조기 퇴근 확인 모달 */
+  .overlay {
+    display: none; position: fixed; inset: 0; z-index: 50;
+    background: rgba(20, 30, 29, .45);
+    align-items: flex-end; justify-content: center;
+  }
+  .overlay.on { display: flex; }
+  .sheet {
+    width: 100%; max-width: 420px; background: #fff;
+    border-radius: 20px 20px 0 0; padding: 24px 22px 30px;
+  }
+  .sheet h3 { font-size: 18px; margin-bottom: 6px; }
+  .sheet .sub { font-size: 14px; color: var(--sub); margin-bottom: 18px; line-height: 1.5; }
+  .reasons { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .reasons label {
+    margin: 0; padding: 10px 14px; font-size: 14.5px; color: var(--ink);
+    border: 1px solid var(--line); border-radius: 20px; cursor: pointer;
+  }
+  .reasons input { display: none; }
+  .reasons input:checked + span { color: var(--accent); font-weight: 700; }
+  .reasons label:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+  .sheet-btns { display: flex; gap: 10px; margin-top: 18px; }
+  .sheet-btns .mini { margin-top: 0; }
+  .sheet-btns .ghost { background: #fff; color: var(--sub); border: 1px solid var(--line); }
 </style>
 </head>
 <body>
@@ -184,10 +213,15 @@
     <div class="date" id="date"></div>
 
     <div class="btn-wrap">
-      <button id="b-in"  class="punch in"  onclick="punch('출근')">출근</button>
-      <button id="b-out" class="punch out" onclick="punch('퇴근')">퇴근</button>
+      <div class="pcol">
+        <div id="st-in" class="pstat"></div>
+        <button id="b-in" class="punch in" onclick="punch('출근')">출근</button>
+      </div>
+      <div class="pcol">
+        <div id="st-out" class="pstat"></div>
+        <button id="b-out" class="punch out" onclick="punch('퇴근')">퇴근</button>
+      </div>
     </div>
-    <div id="p-status" class="status"></div>
 
     <div class="today">
       <h2>오늘 기록</h2>
@@ -210,6 +244,7 @@
       <button id="sg-missing" onclick="gotoSec('missing')">퇴근 누락</button>
       <button id="sg-monthly" onclick="gotoSec('monthly')">월별 집계</button>
       <button id="sg-emp"     onclick="gotoSec('emp')">직원 관리</button>
+      <button id="sg-vac"     onclick="gotoSec('vac')">휴가 관리</button>
       <button id="sg-pw"      onclick="gotoSec('pw')">비번 초기화</button>
     </div>
 
@@ -287,6 +322,29 @@
       </p>
     </div>
 
+    <!-- 휴가 관리 -->
+    <div id="sec-vac" class="sec">
+      <h2>휴가 등록</h2>
+      <label>직원</label>
+      <select id="v-emp"></select>
+      <label>기간 (하루면 시작일만)</label>
+      <div class="range">
+        <input type="date" id="v-from">
+        <input type="date" id="v-to">
+      </div>
+      <label>종류</label>
+      <select id="v-kind"><option>연차</option><option>반차</option><option>공가</option><option>기타</option></select>
+      <input id="v-memo" placeholder="메모 (선택)" style="margin-top:8px">
+      <button id="btn-vacadd" class="mini" onclick="addVac()">등록</button>
+      <div id="adm-vac-msg" class="adm-msg"></div>
+
+      <h2 style="margin-top:28px">등록된 휴가</h2>
+      <ul id="adm-vac-list"><li class="empty">불러오는 중…</li></ul>
+      <p class="meta" style="margin-top:10px;line-height:1.6">
+        휴가일은 오늘 현황과 월별 집계에 자동 반영됩니다.
+      </p>
+    </div>
+
     <!-- 비번 초기화 -->
     <div id="sec-pw" class="sec">
       <h2>비밀번호 초기화</h2>
@@ -303,6 +361,25 @@
     <div class="foot"><button class="linkbtn" onclick="logout()">로그아웃</button></div>
   </div>
 
+</div>
+
+<!-- 조기 퇴근 확인 -->
+<div id="ov-leave" class="overlay">
+  <div class="sheet">
+    <h3>퇴근 시간 전입니다</h3>
+    <p class="sub">정규 퇴근 시각(<span id="lv-std"></span>) 이전입니다.<br>사유를 선택하고 퇴근 처리해 주세요.</p>
+    <div class="reasons">
+      <label><input type="radio" name="lv-r" value="반차" checked><span>반차</span></label>
+      <label><input type="radio" name="lv-r" value="조퇴"><span>조퇴</span></label>
+      <label><input type="radio" name="lv-r" value="외근"><span>외근</span></label>
+      <label><input type="radio" name="lv-r" value="기타"><span>기타</span></label>
+    </div>
+    <input id="lv-detail" placeholder="추가 메모 (선택)">
+    <div class="sheet-btns">
+      <button class="mini ghost" onclick="closeLeaveModal()">취소</button>
+      <button class="mini" onclick="confirmLeave()">퇴근 처리</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -355,12 +432,13 @@
   }
 
   function gotoSec(s) {
-    ['today','records','missing','monthly','emp','pw'].forEach(function (k) {
+    ['today','records','missing','monthly','emp','vac','pw'].forEach(function (k) {
       document.getElementById('sec-' + k).classList.toggle('on', k === s);
       document.getElementById('sg-' + k).classList.toggle('on', k === s);
     });
     if (s === 'missing') loadMissing();
     if (s === 'emp') loadEmpList();
+    if (s === 'vac') loadVacs();
     if (s === 'monthly' && !document.getElementById('m-month').value) {
       var n = new Date();
       document.getElementById('m-month').value =
@@ -474,8 +552,34 @@
     });
   }
 
+  var LEAVE_TIME = '17:30'; // 정규 퇴근 시각 (변경 시 여기만 수정)
+
   function punch(type) {
-    var st = document.getElementById('p-status');
+    // 퇴근인데 정규 시각 전이면 사유 확인 모달
+    if (type === '퇴근') {
+      var n = new Date();
+      var cur = String(n.getHours()).padStart(2, '0') + ':' + String(n.getMinutes()).padStart(2, '0');
+      if (cur < LEAVE_TIME) {
+        document.getElementById('lv-std').textContent = LEAVE_TIME;
+        document.getElementById('lv-detail').value = '';
+        document.getElementById('ov-leave').classList.add('on');
+        return;
+      }
+    }
+    doPunch(type, '');
+  }
+
+  function closeLeaveModal() { document.getElementById('ov-leave').classList.remove('on'); }
+
+  function confirmLeave() {
+    var r = document.querySelector('input[name="lv-r"]:checked').value;
+    var d = document.getElementById('lv-detail').value.trim();
+    closeLeaveModal();
+    doPunch('퇴근', '조기퇴근(' + r + (d ? ': ' + d : '') + ')');
+  }
+
+  function doPunch(type, note) {
+    var st = document.getElementById(type === '출근' ? 'st-in' : 'st-out');
 
     // ① 누르는 즉시 화면에 반영 (낙관적 UI) — 실제 확정 시각은 서버 응답으로 교체됨
     var n = new Date();
@@ -483,19 +587,19 @@
     var entry = { time: p(n.getHours()) + ':' + p(n.getMinutes()), type: type, pending: true };
     todayData.push(entry);
     renderToday(todayData);
-    st.className = 'status ok';
-    st.textContent = type + ' ✓ 처리 중…';
+    st.className = 'pstat ok';
+    st.textContent = '✓ 처리 중…';
 
     // ② 서버 전송 (버튼은 잠깐만 잠갔다 바로 해제 — 연타 오작동 방지용 0.8초)
     setButtons(false);
     setTimeout(function () { setButtons(true); }, 800);
 
     getLocation(function (lat, lng) {
-      api('record', { token: token, type: type, lat: lat, lng: lng, ip: clientIp }, function (res) {
+      api('record', { token: token, type: type, lat: lat, lng: lng, ip: clientIp, note: note }, function (res) {
         if (!res.ok) {
           // 실패 → 방금 항목 제거 + 알림
           removeEntry(entry);
-          st.className = 'status err'; st.textContent = res.msg + ' (기록되지 않았습니다)';
+          st.className = 'pstat err'; st.textContent = '기록 안 됨 — ' + res.msg;
           if (navigator.vibrate) navigator.vibrate(200);
           if (res.msg && res.msg.indexOf('만료') >= 0) { logout(); }
           if (res.msg && res.msg.indexOf('변경') >= 0) { show('v-changepw'); }
@@ -505,11 +609,11 @@
         entry.time = res.time;
         entry.pending = false;
         renderToday(todayData);
-        st.className = 'status ok';
-        st.textContent = type + ' 완료 · ' + res.time;
+        st.className = 'pstat ok';
+        st.textContent = '완료 · ' + res.time;
       }, function () {
         removeEntry(entry);
-        st.className = 'status err'; st.textContent = '연결 실패 — 기록되지 않았습니다. 다시 눌러주세요.';
+        st.className = 'pstat err'; st.textContent = '연결 실패 — 다시 눌러주세요';
         if (navigator.vibrate) navigator.vibrate(200);
       });
     });
@@ -524,6 +628,15 @@
   function setButtons(on) {
     document.getElementById('b-in').disabled = !on;
     document.getElementById('b-out').disabled = !on;
+    if (on) updatePunchButtons(); // 잠금 해제 시에도 출근 완료 상태는 유지
+  }
+
+  /* 오늘 출근이 이미 있으면 출근 버튼 잠금 */
+  function updatePunchButtons() {
+    var hasIn = todayData.some(function (r) { return r.type === '출근'; });
+    var bi = document.getElementById('b-in');
+    bi.disabled = hasIn;
+    bi.textContent = hasIn ? '출근 완료' : '출근';
   }
 
   function getLocation(cb) {
@@ -552,6 +665,7 @@
     ul.innerHTML = '';
     if (!list || list.length === 0) {
       ul.innerHTML = '<li class="empty">아직 기록이 없습니다.</li>';
+      updatePunchButtons();
       return;
     }
     list.forEach(function (r) {
@@ -562,6 +676,7 @@
       li.children[1].textContent = r.time + (r.pending ? ' …' : '');
       ul.appendChild(li);
     });
+    updatePunchButtons();
   }
 
   /* ── 관리자: 오늘 현황 + 직원 목록 ── */
@@ -576,15 +691,19 @@
         res.rows.forEach(function (r) {
           var li = document.createElement('li');
           li.className = 'rowline';
-          var right = r.inT
-            ? (r.inT + ' ~ ' + (r.outT || '근무 중'))
-            : '';
           li.innerHTML = '<span></span><span class="t"></span>';
           li.children[0].textContent = r.name;
-          if (!r.inT) {
-            li.children[1].innerHTML = '<span class="warn">미출근</span>';
+          var right = li.children[1];
+          if (r.vac) {
+            var b = document.createElement('span');
+            b.className = 'badge admin';
+            b.textContent = r.vac;
+            if (r.inT) { right.textContent = r.inT + ' ~ ' + (r.outT || '근무 중') + ' '; }
+            right.appendChild(b);
+          } else if (!r.inT) {
+            right.innerHTML = '<span class="warn">미출근</span>';
           } else {
-            li.children[1].textContent = right;
+            right.textContent = r.inT + ' ~ ' + (r.outT || '근무 중');
           }
           ul.appendChild(li);
         });
@@ -596,15 +715,18 @@
     var q = document.getElementById('q-emp');
     var r = document.getElementById('r-emp');
     var m = document.getElementById('m-emp');
+    var v = document.getElementById('v-emp');
     q.innerHTML = '<option value="">전체</option>';
     r.innerHTML = '';
     m.innerHTML = '';
+    v.innerHTML = '';
     emps.forEach(function (e) {
       var o1 = document.createElement('option');
       o1.value = e.id; o1.textContent = e.name + ' (' + e.id + ')';
       q.appendChild(o1);
       r.appendChild(o1.cloneNode(true));
       m.appendChild(o1.cloneNode(true));
+      v.appendChild(o1.cloneNode(true));
     });
   }
 
@@ -689,7 +811,8 @@
         li.style.cursor = 'pointer';
         li.innerHTML = '<span></span><span class="t"></span>';
         li.children[0].textContent = t.name;
-        li.children[1].textContent = t.days + '일 · ' + t.hours + 'h' + (t.miss ? ' · 누락 ' + t.miss : '');
+        li.children[1].textContent = t.days + '일 · ' + t.hours + 'h'
+          + (t.vac ? ' · 휴가 ' + t.vac : '') + (t.miss ? ' · 누락 ' + t.miss : '');
         if (t.miss) li.children[1].innerHTML += ' <span class="warn">!</span>';
         li.onclick = function () { renderMonthDetails(t.id, t.name); };
         tul.appendChild(li);
@@ -716,6 +839,9 @@
         li.children[1].textContent = d.inT + ' ~ ' + d.outT + ' · ' + d.hours + 'h';
       } else if (d.status === '근무중') {
         li.children[1].textContent = d.inT + ' ~ 근무 중';
+      } else if (['연차', '반차', '공가', '기타'].indexOf(d.status) >= 0) {
+        li.children[1].innerHTML = '<span class="badge admin"></span>';
+        li.children[1].children[0].textContent = d.status;
       } else {
         li.children[1].innerHTML = '<span class="warn"></span>';
         li.children[1].children[0].textContent = d.status + (d.inT ? ' (출근 ' + d.inT + ')' : '');
@@ -826,6 +952,64 @@
       msg.className = 'adm-msg ' + (res.ok ? 'ok' : 'err');
       msg.textContent = res.msg;
     }, function () { done(); msg.className = 'adm-msg err'; msg.textContent = '추가에 실패했습니다.'; });
+  }
+
+  /* ── 관리자: 휴가 관리 ── */
+  function loadVacs() {
+    var ul = document.getElementById('adm-vac-list');
+    listLoading(ul);
+    api('admVacList', { token: token }, function (res) {
+      if (!res.ok) { ul.innerHTML = '<li class="empty">' + res.msg + '</li>'; return; }
+      ul.innerHTML = '';
+      if (res.rows.length === 0) { ul.innerHTML = '<li class="empty">등록된 휴가가 없습니다.</li>'; return; }
+      res.rows.forEach(function (v) {
+        var li = document.createElement('li');
+        li.className = 'rowline';
+        var left = document.createElement('span');
+        left.textContent = v.name + ' ';
+        var meta = document.createElement('span');
+        meta.className = 'meta';
+        meta.textContent = v.from + (v.to !== v.from ? ' ~ ' + v.to : '') + ' · ' + v.kind + (v.memo ? ' · ' + v.memo : '');
+        left.appendChild(meta);
+        var right = document.createElement('span');
+        var del = document.createElement('button');
+        del.className = 'fixbtn';
+        del.textContent = '삭제';
+        del.onclick = function () {
+          if (!confirm(v.name + ' · ' + v.from + ' ' + v.kind + ' 를 삭제할까요?')) return;
+          var done = busy(del);
+          api('admVacDel', { token: token, vid: v.vid }, function (res2) {
+            done();
+            if (res2.ok) loadVacs(); else alert(res2.msg);
+          }, function () { done(); alert('삭제에 실패했습니다.'); });
+        };
+        right.appendChild(del);
+        li.appendChild(left); li.appendChild(right);
+        ul.appendChild(li);
+      });
+    }, function () { ul.innerHTML = '<li class="empty">불러오기에 실패했습니다.</li>'; });
+  }
+
+  function addVac() {
+    var msg = document.getElementById('adm-vac-msg');
+    var empId = document.getElementById('v-emp').value;
+    var from = document.getElementById('v-from').value;
+    var to = document.getElementById('v-to').value;
+    var kind = document.getElementById('v-kind').value;
+    var memo = document.getElementById('v-memo').value.trim();
+    if (!empId) { msg.className = 'adm-msg err'; msg.textContent = '직원 목록이 비어있습니다. [오늘 현황]을 한 번 열어주세요.'; return; }
+    if (!from) { msg.className = 'adm-msg err'; msg.textContent = '시작일을 선택해 주세요.'; return; }
+    msg.className = 'adm-msg'; msg.textContent = '';
+    var done = busy(document.getElementById('btn-vacadd'));
+    api('admVacAdd', { token: token, empId: empId, from: from, to: to, kind: kind, memo: memo }, function (res) {
+      done();
+      msg.className = 'adm-msg ' + (res.ok ? 'ok' : 'err');
+      msg.textContent = res.msg;
+      if (res.ok) {
+        document.getElementById('v-memo').value = '';
+        loadVacs();
+      }
+    }, function () { done(); msg.className = 'adm-msg err'; msg.textContent = '등록에 실패했습니다.'; });
   }
 
   /* ── 관리자: 비번 초기화 ── */
