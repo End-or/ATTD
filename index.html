@@ -469,6 +469,7 @@
 
   var TOKEN_KEY = 'att_token';
   var token = localStorage.getItem(TOKEN_KEY) || '';
+  var session = 0; // 로그아웃 시 증가 — 이전 세션의 늦은 응답을 무시하기 위함
   var clientIp = '';
   var myRole = '';
   var empListLoaded = false;
@@ -618,7 +619,9 @@
       applyRole(localStorage.getItem('att_role'));
       enterMain(savedName, null); // null = 목록 로딩 중 표시
     }
+    var s = session;
     api('check', { token: token }, function (res) {
+      if (s !== session) return; // 로그아웃 후 도착한 응답 무시
       if (res.ok) {
         localStorage.setItem('att_name', dispName(res.name, res.rank));
         localStorage.setItem('att_role', res.role || '');
@@ -629,7 +632,7 @@
       } else {
         logout();
       }
-    }, function () { if (!savedName) show('v-login'); });
+    }, function () { if (s !== session) return; if (!savedName) show('v-login'); });
   }
 
   function applyRole(role) {
@@ -703,7 +706,9 @@
   }
 
   function refreshToday() {
+    var s = session;
     api('check', { token: token }, function (res) {
+      if (s !== session) return;
       if (res.ok) {
         localStorage.setItem('att_email', res.email || '');
         applyRole(res.role);
@@ -740,6 +745,7 @@
   }
 
   function doPunch(type, note) {
+    var s = session;
     var st = document.getElementById(type === '출근' ? 'st-in' : 'st-out');
 
     // ① 누르는 즉시 화면에 반영 (낙관적 UI) — 실제 확정 시각은 서버 응답으로 교체됨
@@ -757,6 +763,7 @@
 
     getLocation(function (lat, lng) {
       api('record', { token: token, type: type, lat: lat, lng: lng, ip: clientIp, note: note }, function (res) {
+        if (s !== session) return;
         if (!res.ok) {
           // 실패 → 방금 항목 제거 + 알림
           removeEntry(entry);
@@ -773,6 +780,7 @@
         st.className = 'pstat ok';
         st.textContent = '완료 · ' + res.time;
       }, function () {
+        if (s !== session) return;
         removeEntry(entry);
         st.className = 'pstat err'; st.textContent = '연결 실패 — 다시 눌러주세요';
         if (navigator.vibrate) navigator.vibrate(200);
@@ -1293,6 +1301,8 @@
 
   /* ── 로그아웃 ── */
   function logout() {
+    session++; // 진행 중이던 요청의 늦은 응답 차단
+    if (token) { api('logout', { token: token }, function () {}, function () {}); } // 서버 토큰 삭제
     localStorage.removeItem(TOKEN_KEY); token = ''; myRole = '';
     localStorage.removeItem('att_name');
     localStorage.removeItem('att_role');
