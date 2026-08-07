@@ -178,8 +178,8 @@
   <div id="v-login" class="view">
     <div class="brand">ATTENDANCE</div>
     <h1>출퇴근 기록</h1>
-    <label for="f-id">아이디 (휴대폰 번호 뒤 8자리)</label>
-    <input id="f-id" inputmode="numeric" maxlength="8" placeholder="12345678" autocomplete="username">
+    <label for="f-id">아이디 (회사 이메일 @ 앞부분)</label>
+    <input id="f-id" placeholder="hong.gd" autocomplete="username" autocapitalize="none" autocorrect="off">
     <label for="f-pw">비밀번호</label>
     <input id="f-pw" type="password" placeholder="초기 비밀번호 1234" autocomplete="current-password">
     <button id="btn-login" class="primary" onclick="login()">로그인</button>
@@ -288,6 +288,13 @@
       <ul id="adm-month-totals" style="margin-top:14px"></ul>
       <p class="meta" id="adm-month-hint" style="display:none;margin-top:10px">직원을 누르면 일별 상세가 표시됩니다.</p>
       <ul id="adm-month-details" style="margin-top:6px"></ul>
+
+      <h2 style="margin-top:28px">집계 파일 메일 발송</h2>
+      <button id="btn-mailme" class="mini" onclick="mailMonthly('')">내 메일로 보내기</button>
+      <label style="margin-top:18px">다른 직원에게 보내기</label>
+      <select id="m-mailto-emp"></select>
+      <button id="btn-mailother" class="mini" onclick="mailMonthlyOther()">선택한 직원에게 보내기</button>
+      <div id="adm-mail-msg" class="adm-msg"></div>
     </div>
 
     <!-- 직원 관리 -->
@@ -297,10 +304,12 @@
       <div id="adm-emp-msg" class="adm-msg"></div>
 
       <h2 style="margin-top:28px">직원 추가</h2>
-      <label>사번 (전화번호 뒤 8자리)</label>
-      <input id="e-id" inputmode="numeric" maxlength="12">
+      <label>회사 이메일 (아이디 = @ 앞부분)</label>
+      <input id="e-email" type="email" placeholder="hong.gd@company.com" autocapitalize="none">
       <label>이름</label>
       <input id="e-name">
+      <label>직급</label>
+      <input id="e-rank" placeholder="사원 / 대리 / 과장 …">
       <label>권한</label>
       <select id="e-role"><option>직원</option><option>관리자</option></select>
       <button id="btn-addemp" class="mini" onclick="addEmp()">추가 (초기 비밀번호 1234)</button>
@@ -409,6 +418,8 @@
       .catch(function () { if (onFail) onFail(); });
   }
 
+  function dispName(name, rank) { return name + (rank ? ' ' + rank : ''); }
+
   var TOKEN_KEY = 'att_token';
   var token = localStorage.getItem(TOKEN_KEY) || '';
   var clientIp = '';
@@ -439,10 +450,12 @@
     if (s === 'missing') loadMissing();
     if (s === 'emp') loadEmpList();
     if (s === 'vac') loadVacs();
-    if (s === 'monthly' && !document.getElementById('m-month').value) {
-      var n = new Date();
-      document.getElementById('m-month').value =
-        n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0');
+    if (s === 'monthly') {
+      if (!document.getElementById('m-month').value) {
+        var n = new Date();
+        document.getElementById('m-month').value =
+          n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0');
+      }
     }
   }
 
@@ -468,10 +481,11 @@
     }
     api('check', { token: token }, function (res) {
       if (res.ok) {
-        localStorage.setItem('att_name', res.name);
+        localStorage.setItem('att_name', dispName(res.name, res.rank));
         localStorage.setItem('att_role', res.role || '');
+        localStorage.setItem('att_email', res.email || '');
         applyRole(res.role);
-        enterMain(res.name, res.today);
+        enterMain(dispName(res.name, res.rank), res.today);
         if (res.mustChange) show('v-changepw');
       } else {
         logout();
@@ -497,11 +511,11 @@
       if (!res.ok) { msg.textContent = res.msg; return; }
       token = res.token;
       localStorage.setItem(TOKEN_KEY, token);
-      localStorage.setItem('att_name', res.name);
+      localStorage.setItem('att_name', dispName(res.name, res.rank));
       localStorage.setItem('att_role', res.role || '');
       applyRole(res.role);
-      if (res.mustChange) { document.getElementById('u-name').textContent = res.name; show('v-changepw'); }
-      else { enterMain(res.name, []); refreshToday(); }
+      if (res.mustChange) { document.getElementById('u-name').textContent = dispName(res.name, res.rank); show('v-changepw'); }
+      else { enterMain(dispName(res.name, res.rank), []); refreshToday(); }
     }, function () { done(); msg.textContent = '연결에 실패했습니다. 잠시 후 다시 시도해 주세요.'; });
   }
 
@@ -548,7 +562,11 @@
 
   function refreshToday() {
     api('check', { token: token }, function (res) {
-      if (res.ok) { applyRole(res.role); enterMain(res.name, res.today || []); }
+      if (res.ok) {
+        localStorage.setItem('att_email', res.email || '');
+        applyRole(res.role);
+        enterMain(dispName(res.name, res.rank), res.today || []);
+      }
     });
   }
 
@@ -720,13 +738,16 @@
     r.innerHTML = '';
     m.innerHTML = '';
     v.innerHTML = '';
+    var w = document.getElementById('m-mailto-emp');
+    w.innerHTML = '';
     emps.forEach(function (e) {
       var o1 = document.createElement('option');
-      o1.value = e.id; o1.textContent = e.name + ' (' + e.id + ')';
+      o1.value = e.id; o1.textContent = dispName(e.name, e.rank) + ' (' + e.id + ')';
       q.appendChild(o1);
       r.appendChild(o1.cloneNode(true));
       m.appendChild(o1.cloneNode(true));
       v.appendChild(o1.cloneNode(true));
+      w.appendChild(o1.cloneNode(true));
     });
   }
 
@@ -850,6 +871,30 @@
     });
   }
 
+  function mailMonthly(toEmpId) {
+    var msg = document.getElementById('adm-mail-msg');
+    var ym = document.getElementById('m-month').value;
+    if (!ym) { msg.className = 'adm-msg err'; msg.textContent = '월을 선택해 주세요.'; return; }
+    msg.className = 'adm-msg'; msg.textContent = '';
+    var done = busy(document.getElementById(toEmpId ? 'btn-mailother' : 'btn-mailme'));
+    api('admMailMonthly', { token: token, ym: ym, toEmpId: toEmpId || '' }, function (res) {
+      done();
+      msg.className = 'adm-msg ' + (res.ok ? 'ok' : 'err');
+      msg.textContent = res.msg;
+    }, function () { done(); msg.className = 'adm-msg err'; msg.textContent = '발송에 실패했습니다.'; });
+  }
+
+  function mailMonthlyOther() {
+    var sel = document.getElementById('m-mailto-emp');
+    if (!sel.value) {
+      var msg = document.getElementById('adm-mail-msg');
+      msg.className = 'adm-msg err';
+      msg.textContent = '직원 목록이 비어있습니다. [오늘 현황]을 한 번 열어주세요.';
+      return;
+    }
+    mailMonthly(sel.value);
+  }
+
   /* ── 관리자: 직원 관리 ── */
   function loadEmpList() {
     var ul = document.getElementById('adm-emp-list');
@@ -863,7 +908,7 @@
 
         // 왼쪽: 이름 + (사번) + 현재 상태 배지
         var left = document.createElement('span');
-        left.textContent = r.name + ' ';
+        left.textContent = dispName(r.name, r.rank) + ' ';
         var meta = document.createElement('span');
         meta.className = 'meta';
         meta.textContent = '(' + r.id + ')';
@@ -903,7 +948,18 @@
             done(); showEmpMsg(res2); if (res2.ok) loadEmpList();
           }, function () { done(); showEmpMsg({ ok: false, msg: '처리에 실패했습니다.' }); });
         };
-        right.appendChild(b1); right.appendChild(b2);
+        var b3 = document.createElement('button');
+        b3.className = 'fixbtn';
+        b3.textContent = '메일';
+        b3.onclick = function () {
+          var v = prompt(r.name + ' 님의 회사 이메일\n(변경하면 로그인 아이디도 바뀌고, 해당 직원은 다시 로그인해야 합니다)', r.email || '');
+          if (v === null) return;
+          var done = busy(b3);
+          api('admSetEmail', { token: token, empId: r.id, email: v.trim() }, function (res2) {
+            done(); showEmpMsg(res2); if (res2.ok) loadEmpList();
+          }, function () { done(); showEmpMsg({ ok: false, msg: '처리에 실패했습니다.' }); });
+        };
+        right.appendChild(b1); right.appendChild(b2); right.appendChild(b3);
         li.appendChild(left); li.appendChild(right);
         ul.appendChild(li);
       });
@@ -917,20 +973,22 @@
   }
 
   function addEmp() {
-    var id = document.getElementById('e-id').value.trim();
+    var email = document.getElementById('e-email').value.trim();
     var name = document.getElementById('e-name').value.trim();
+    var rank = document.getElementById('e-rank').value.trim();
     var role = document.getElementById('e-role').value;
     var msg = document.getElementById('adm-add-msg');
-    if (!id || !name) { msg.className = 'adm-msg err'; msg.textContent = '사번과 이름을 입력해 주세요.'; return; }
+    if (!email || !name) { msg.className = 'adm-msg err'; msg.textContent = '이메일과 이름을 입력해 주세요.'; return; }
     msg.className = 'adm-msg'; msg.textContent = '';
     var done = busy(document.getElementById('btn-addemp'));
-    api('admAddEmp', { token: token, empId: id, name: name, role: role }, function (res) {
+    api('admAddEmp', { token: token, email: email, name: name, rank: rank, role: role }, function (res) {
       done();
       msg.className = 'adm-msg ' + (res.ok ? 'ok' : 'err');
       msg.textContent = res.msg;
       if (res.ok) {
-        document.getElementById('e-id').value = '';
+        document.getElementById('e-email').value = '';
         document.getElementById('e-name').value = '';
+        document.getElementById('e-rank').value = '';
         empListLoaded = false; // 직원 select 갱신 유도
         loadEmpList();
       }
@@ -1033,6 +1091,7 @@
     localStorage.removeItem(TOKEN_KEY); token = ''; myRole = '';
     localStorage.removeItem('att_name');
     localStorage.removeItem('att_role');
+    localStorage.removeItem('att_email');
     todayData = [];
     empListLoaded = false;
     document.getElementById('f-pw').value = '';
