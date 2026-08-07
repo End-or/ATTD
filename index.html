@@ -523,6 +523,12 @@
   function show(id) {
     document.querySelectorAll('.view').forEach(function (v) { v.classList.remove('on'); });
     document.getElementById(id).classList.add('on');
+    // 비밀번호 변경 화면은 열릴 때마다 입력칸을 비움 (이전 세션 잔존값 방지)
+    if (id === 'v-changepw') {
+      document.getElementById('f-npw').value = '';
+      document.getElementById('f-npw2').value = '';
+      document.getElementById('pw-msg').textContent = '';
+    }
   }
 
   function gotoTab(t) {
