@@ -133,6 +133,12 @@
   .picklist .none { color: var(--sub); font-size: 13.5px; }
   .dsat { color: #3d5bd9; }
   .dsun { color: var(--danger); }
+  .dayhead {
+    margin: 16px 0 2px; padding: 7px 12px;
+    font-size: 13.5px; font-weight: 700; color: var(--ink);
+    background: var(--accent-soft); border-radius: 8px;
+  }
+  li.dayhead + li.rowline { border-top: none; }
   .warn { color: var(--danger); font-weight: 600; }
 
   /* 관리자 화면 */
@@ -1062,13 +1068,34 @@
         if (!res.ok) { ul.innerHTML = '<li class="empty">' + res.msg + '</li>'; return; }
         ul.innerHTML = '';
         if (res.rows.length === 0) { ul.innerHTML = '<li class="empty">해당 기간의 기록이 없습니다.</li>'; return; }
+        var curDate = '';
         res.rows.forEach(function (r) {
+          if (r.date !== curDate) {
+            curDate = r.date;
+            var h = document.createElement('li');
+            h.className = 'dayhead';
+            h.textContent = r.date;
+            appendDow(h, r.date);
+            ul.appendChild(h);
+          }
           var li = document.createElement('li');
           li.className = 'rowline';
-          li.innerHTML = '<span></span><span class="tag' + (r.type === '출근' ? ' i' : '') + '"></span><span class="t"></span>';
+          li.innerHTML = '<span></span><span class="t"></span>';
           li.children[0].textContent = r.name;
-          li.children[1].textContent = r.type;
-          li.children[2].textContent = r.time;
+          if (r.note) {
+            var nm = document.createElement('span');
+            nm.className = 'meta';
+            nm.textContent = ' · ' + r.note;
+            li.children[0].appendChild(nm);
+          }
+          var right = li.children[1];
+          if (r.status) {
+            right.innerHTML = '<span class="warn"></span>';
+            right.children[0].textContent = r.status
+              + (r.inT ? ' (출근 ' + r.inT + ')' : r.outT ? ' (퇴근 ' + r.outT + ')' : '');
+          } else {
+            right.textContent = r.inT + ' ~ ' + r.outT;
+          }
           ul.appendChild(li);
         });
       }, function () { ul.innerHTML = '<li class="empty">조회에 실패했습니다.</li>'; });
