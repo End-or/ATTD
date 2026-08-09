@@ -140,6 +140,8 @@
     flex: 1 1 30%; padding: 10px 0; font-size: 13.5px; font-weight: 600;
     background: #fff; border: 1px solid var(--line); border-radius: 10px; color: var(--sub);
   }
+  .seg .segbreak { flex-basis: 100%; height: 0; }
+  .seg button.personal { border-style: dashed; }
   .meta { font-size: 12.5px; color: var(--sub); }
   .seg button.on { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
   .sec { display: none; }
@@ -293,10 +295,15 @@
     <div id="sec-missing" class="sec">
       <h2>퇴근 누락 (최근 30일)</h2>
       <ul id="adm-miss-list"><li class="empty">불러오는 중…</li></ul>
+
+      <h2 style="margin-top:26px">휴가 미등록 조기퇴근</h2>
+      <ul id="adm-pend-list"></ul>
+
       <button class="mini" onclick="loadMissing(true)">새로고침</button>
       <p style="font-size:13px;color:var(--sub);margin-top:12px;line-height:1.6">
         [정정]을 누르면 입력한 시각으로 퇴근 기록이 추가되고, 시트에는 '정정' 상태와
-        처리자가 함께 남습니다.
+        처리자가 함께 남습니다. 직원이 반차 사유로 일찍 퇴근한 건은 [휴가 등록]을 누르면
+        해당 날짜에 반차가 등록되고 목록에서 사라집니다.
       </p>
     </div>
 
@@ -323,6 +330,8 @@
     <!-- 직원 관리 -->
     <div id="sec-emp" class="sec">
       <h2>직원 목록</h2>
+      <input id="emp-q" placeholder="이름 · 초성 · 아이디로 검색" autocomplete="off"
+             autocapitalize="none" oninput="renderEmpList()" style="margin-bottom:6px">
       <ul id="adm-emp-list"><li class="empty">불러오는 중…</li></ul>
       <div id="adm-emp-msg" class="adm-msg"></div>
     </div>
@@ -383,6 +392,11 @@
       <div id="adm-vac-msg" class="adm-msg"></div>
 
       <h2 style="margin-top:28px">등록된 휴가</h2>
+      <div class="seg" style="margin-bottom:10px">
+        <button id="vf-day" class="on" onclick="setVacFilter('day')">오늘</button>
+        <button id="vf-week" onclick="setVacFilter('week')">이번 주</button>
+        <button id="vf-month" onclick="setVacFilter('month')">이번 달</button>
+      </div>
       <ul id="adm-vac-list"><li class="empty">불러오는 중…</li></ul>
       <p class="meta" style="margin-top:10px;line-height:1.6">
         휴가일은 오늘 현황과 월별 집계에 자동 반영됩니다.
@@ -518,6 +532,7 @@
   var myRole = '';
   var empListLoaded = false;
   var cachedLoc = null;   // { lat, lng, ts } — 미리 받아둔 위치
+  var todayVac = '';      // 오늘 본인 휴가 종류 (연차 출근 확인창용)
   var todayData = [];     // 오늘 기록 (클라이언트 보관)
 
   function show(id) {
@@ -548,8 +563,7 @@
     { key: 'att',     label: '근태 관리', admin: true,  tabs: [['vac', '휴가'], ['missing', '퇴근 누락'], ['manual', '수동 기록']] },
     { key: 'people',  label: '인원 관리', admin: true,  tabs: [['emp', '직원 목록']] },
     { key: 'app',     label: '어플 관리', admin: true,  tabs: [['addemp', '직원 추가'], ['pw', '비번 초기화'], ['notify', '알림']] },
-    { key: 'me',      label: '내 기록',   admin: false, tabs: [['myrec', '내 기록']] },
-    { key: 'leave',   label: '연차 계산', admin: false, tabs: [['leave', '연차 계산']] }
+    { key: 'me',      label: '내 정보',   admin: false, tabs: [['myrec', '내 기록'], ['leave', '연차 계산']] }
   ];
   var ALL_SECS = ['today', 'records', 'monthly', 'vac', 'missing', 'manual', 'emp', 'addemp', 'pw', 'notify', 'myrec', 'leave'];
   var curGroupKey = null;
@@ -564,9 +578,16 @@
     var wrap = document.getElementById('menu-groups');
     wrap.innerHTML = '';
     groups.forEach(function (g) {
+      // 관리자 화면에서는 개인 메뉴 앞에서 줄을 나눠 업무 메뉴와 구분
+      if (!g.admin && myRole === '관리자') {
+        var br = document.createElement('span');
+        br.className = 'segbreak';
+        wrap.appendChild(br);
+      }
       var b = document.createElement('button');
       b.textContent = g.label;
       b.id = 'grp-' + g.key;
+      if (!g.admin && myRole === '관리자') b.className = 'personal';
       b.onclick = function () { openGroup(g.key); };
       wrap.appendChild(b);
     });
@@ -582,6 +603,7 @@
     if (!g) return;
     var wrap = document.getElementById('menu-groups');
     for (var i = 0; i < wrap.children.length; i++) {
+      if (wrap.children[i].tagName !== 'BUTTON') continue;
       wrap.children[i].classList.toggle('on', wrap.children[i].id === 'grp-' + key);
     }
     var sub = document.getElementById('menu-subtabs');
@@ -682,6 +704,7 @@
         localStorage.setItem('att_role', res.role || '');
         localStorage.setItem('att_email', res.email || '');
         localStorage.setItem('att_morning', res.morning ? '1' : '0');
+        todayVac = res.todayVac || '';
         applyRole(res.role);
         enterMain(dispName(res.name, res.rank), res.today);
         if (res.mustChange) show('v-changepw');
@@ -768,6 +791,7 @@
       if (res.ok) {
         localStorage.setItem('att_email', res.email || '');
         localStorage.setItem('att_morning', res.morning ? '1' : '0');
+        todayVac = res.todayVac || '';
         applyRole(res.role);
         enterMain(dispName(res.name, res.rank), res.today || []);
       }
@@ -778,6 +802,10 @@
   var DAY_START = '03:00';  // 하루 경계(백엔드와 동일) — 이 시각 전 퇴근은 심야 퇴근으로 취급
 
   function punch(type) {
+    // 종일 휴가로 등록된 날의 출근은 한 번 확인 (실수 방지 — 실제 출근은 통과)
+    if (type === '출근' && (todayVac === '연차' || todayVac === '공가' || todayVac === '기타')) {
+      if (!confirm('오늘은 ' + todayVac + '(으)로 등록되어 있습니다. 출근 처리할까요?')) return;
+    }
     // 퇴근인데 정규 시각 전이면 사유 확인 모달
     if (type === '퇴근') {
       var n = new Date();
@@ -943,7 +971,12 @@
             var b = document.createElement('span');
             b.className = 'badge admin';
             b.textContent = r.vac;
-            if (r.inT) { right.textContent = r.inT + ' ~ ' + (r.outT || '근무 중') + ' '; }
+            if (r.inT) {
+              right.textContent = r.inT + ' ~ ' + (r.outT || '근무 중') + ' ';
+            } else if (r.vac === '오후반차') {
+              // 오후반차는 오전 출근 대상 — 미출근 경고 유지
+              right.innerHTML = '<span class="warn">미출근</span>&nbsp;';
+            }
             right.appendChild(b);
           } else if (!r.inT) {
             right.innerHTML = '<span class="warn">미출근</span>';
@@ -1076,7 +1109,7 @@
     cachedApi('missing', 'admMissing', { token: token }, force, TTL_LONG, function (res) {
         if (!res.ok) { ul.innerHTML = '<li class="empty">' + res.msg + '</li>'; return; }
         ul.innerHTML = '';
-        if (res.rows.length === 0) { ul.innerHTML = '<li class="empty">누락 건이 없습니다.</li>'; return; }
+        if (res.rows.length === 0) ul.innerHTML = '<li class="empty">누락 건이 없습니다.</li>';
         res.rows.forEach(function (r) {
           var li = document.createElement('li');
           li.className = 'rowline';
@@ -1091,10 +1124,47 @@
           right.appendChild(btn);
           ul.appendChild(li);
         });
+        renderPending(res.pending || []);
       }, function () { ul.innerHTML = '<li class="empty">불러오기에 실패했습니다.</li>'; });
   }
 
   /* 퇴근 누락 정정: 시각 입력받아 서버에 정정 기록 추가 */
+  /* 반차 사유로 일찍 퇴근했지만 휴가가 등록되지 않은 건 */
+  function renderPending(list) {
+    var ul = document.getElementById('adm-pend-list');
+    ul.innerHTML = '';
+    if (!list || list.length === 0) {
+      ul.innerHTML = '<li class="empty">대기 중인 건이 없습니다.</li>';
+      return;
+    }
+    list.forEach(function (p) {
+      var li = document.createElement('li');
+      li.className = 'rowline';
+      li.innerHTML = '<span></span><span class="t"></span>';
+      li.children[0].textContent = p.date + ' · ' + p.name;
+      var meta = document.createElement('span');
+      meta.className = 'meta';
+      meta.textContent = ' ' + p.note;
+      li.children[0].appendChild(meta);
+      var btn = document.createElement('button');
+      btn.className = 'fixbtn';
+      btn.textContent = '휴가 등록';
+      btn.onclick = function () {
+        var kind = confirm(p.name + ' · ' + p.date + '\n오후반차로 등록할까요?\n\n[확인] 오후반차   [취소] 등록 안 함')
+          ? '오후반차' : null;
+        if (!kind) return;
+        var done = busy(btn);
+        api('admVacAdd', { token: token, empId: p.id, from: p.date, to: p.date, kind: kind, memo: '조기퇴근 사유 등록' }, function (res) {
+          done();
+          if (res.ok) { clearAdmCache(); loadMissing(true); }
+          else alert(res.msg);
+        }, function () { done(); alert('등록에 실패했습니다.'); });
+      };
+      li.children[1].appendChild(btn);
+      ul.appendChild(li);
+    });
+  }
+
   function fixMissing(r) {
     var t = prompt(r.name + ' · ' + r.date + '\n퇴근 시각을 입력하세요 (예: 18:30)', '18:00');
     if (t === null) return;
@@ -1197,13 +1267,29 @@
   }
 
   /* ── 관리자: 직원 관리 ── */
+  var empRows = [];
+
   function loadEmpList(force) {
     var ul = document.getElementById('adm-emp-list');
     listLoading(ul);
     cachedApi('emp', 'admEmpList', { token: token }, force, TTL_LONG, function (res) {
       if (!res.ok) { ul.innerHTML = '<li class="empty">' + res.msg + '</li>'; return; }
-      ul.innerHTML = '';
-      res.rows.forEach(function (r) {
+      empRows = res.rows || [];
+      renderEmpList();
+    }, function () { ul.innerHTML = '<li class="empty">불러오기에 실패했습니다.</li>'; });
+  }
+
+  /* 입력한 검색어(이름·초성·아이디·직급)로 즉시 필터 */
+  function renderEmpList() {
+    var ul = document.getElementById('adm-emp-list');
+    var q = document.getElementById('emp-q').value;
+    var rows = empRows.filter(function (e) { return empMatch(e, q); });
+    ul.innerHTML = '';
+    if (rows.length === 0) {
+      ul.innerHTML = '<li class="empty">' + (empRows.length ? '일치하는 직원이 없습니다.' : '직원이 없습니다.') + '</li>';
+      return;
+    }
+    rows.forEach(function (r) {
         var li = document.createElement('li');
         li.className = 'rowline';
 
@@ -1263,8 +1349,7 @@
         right.appendChild(b1); right.appendChild(b2); right.appendChild(b3);
         li.appendChild(left); li.appendChild(right);
         ul.appendChild(li);
-      });
-    }, function () { ul.innerHTML = '<li class="empty">불러오기에 실패했습니다.</li>'; });
+    });
   }
 
   function showEmpMsg(res) {
@@ -1316,14 +1401,55 @@
   }
 
   /* ── 관리자: 휴가 관리 ── */
-  function loadVacs(force) {
+  var vacFilter = 'day';   // day | week | month
+  var vacRows = [];
+
+  function setVacFilter(f) {
+    vacFilter = f;
+    ['day', 'week', 'month'].forEach(function (k) {
+      document.getElementById('vf-' + k).classList.toggle('on', k === f);
+    });
+    renderVacs();
+  }
+
+  /* 주어진 날짜가 보이는 가장 좁은 기간 필터 */
+  function filterFor(dateStr) {
+    var keep = vacFilter, out = 'month';
+    ['day', 'week', 'month'].some(function (f) {
+      vacFilter = f;
+      var r = vacRange();
+      if (dateStr >= r[0] && dateStr <= r[1]) { out = f; return true; }
+      return false;
+    });
+    vacFilter = keep;
+    return out;
+  }
+
+  /* 선택한 기간과 겹치는 휴가만 표시 */
+  function vacRange() {
+    var n = new Date(), f, t;
+    if (vacFilter === 'day') { f = new Date(n); t = new Date(n); }
+    else if (vacFilter === 'week') {
+      f = new Date(n); f.setDate(f.getDate() - f.getDay());        // 이번 주 일요일
+      t = new Date(f); t.setDate(t.getDate() + 6);                  // 토요일
+    } else {
+      f = new Date(n.getFullYear(), n.getMonth(), 1);
+      t = new Date(n.getFullYear(), n.getMonth() + 1, 0);
+    }
+    return [d2s(f), d2s(t)];
+  }
+
+  function renderVacs() {
     var ul = document.getElementById('adm-vac-list');
-    listLoading(ul);
-    cachedApi('vac', 'admVacList', { token: token }, force, TTL_LONG, function (res) {
-      if (!res.ok) { ul.innerHTML = '<li class="empty">' + res.msg + '</li>'; return; }
-      ul.innerHTML = '';
-      if (res.rows.length === 0) { ul.innerHTML = '<li class="empty">등록된 휴가가 없습니다.</li>'; return; }
-      res.rows.forEach(function (v) {
+    var r = vacRange();
+    var rows = vacRows.filter(function (v) { return v.from <= r[1] && v.to >= r[0]; });
+    ul.innerHTML = '';
+    if (rows.length === 0) {
+      var label = vacFilter === 'day' ? '오늘' : vacFilter === 'week' ? '이번 주' : '이번 달';
+      ul.innerHTML = '<li class="empty">' + label + ' 등록된 휴가가 없습니다.</li>';
+      return;
+    }
+    rows.forEach(function (v) {
         var li = document.createElement('li');
         li.className = 'rowline';
         var left = document.createElement('span');
@@ -1347,7 +1473,16 @@
         right.appendChild(del);
         li.appendChild(left); li.appendChild(right);
         ul.appendChild(li);
-      });
+    });
+  }
+
+  function loadVacs(force) {
+    var ul = document.getElementById('adm-vac-list');
+    listLoading(ul);
+    cachedApi('vac', 'admVacList', { token: token }, force, TTL_LONG, function (res) {
+      if (!res.ok) { ul.innerHTML = '<li class="empty">' + res.msg + '</li>'; return; }
+      vacRows = res.rows || [];
+      renderVacs();
     }, function () { ul.innerHTML = '<li class="empty">불러오기에 실패했습니다.</li>'; });
   }
 
@@ -1369,6 +1504,7 @@
       if (res.ok) {
         document.getElementById('v-memo').value = '';
         clearAdmCache();
+        setVacFilter(filterFor(from)); // 방금 등록한 건이 보이는 기간으로 전환
         loadVacs(true);
       }
     }, function () { done(); msg.className = 'adm-msg err'; msg.textContent = '등록에 실패했습니다.'; });
