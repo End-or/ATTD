@@ -455,11 +455,11 @@
       </p>
       <div id="adm-notify-msg" class="adm-msg"></div>
 
-      <h2 style="margin-top:30px">자동화</h2>
-      <ul id="auto-list"><li class="empty">불러오는 중…</li></ul>
+      <h2 style="margin-top:30px">데이터 정리</h2>
       <button id="btn-arcnow" class="mini red" onclick="archiveNow()">아카이브 지금 실행</button>
       <p class="meta" style="margin-top:10px;line-height:1.6">
-        아카이브는 지난해 기록을 '기록_연도' 탭으로 옮겨 앱 속도를 유지합니다. 데이터는 삭제되지 않습니다.
+        지난해 기록을 '기록_연도' 탭으로 옮겨 앱 속도를 유지합니다. 데이터는 삭제되지 않으며,
+        매년 1월 1일 새벽에는 자동으로 실행됩니다. 아침 리포트 발송과 함께 별도 설정 없이 동작합니다.
       </p>
       <div id="adm-auto-msg" class="adm-msg"></div>
     </div>
@@ -691,7 +691,6 @@
     if (secId === 'myrec') loadMyMonth();
     if (secId === 'notify') {
       document.getElementById('chk-morning').checked = localStorage.getItem('att_morning') === '1';
-      loadAuto();
     }
     if (secId === 'records' && !document.getElementById('q-from').value) setQRange('7d');
     if (secId === 'monthly' && !document.getElementById('m-month').value) {
@@ -1147,51 +1146,7 @@
       }, function () { ul.innerHTML = '<li class="empty">조회에 실패했습니다.</li>'; });
   }
 
-  /* ── 설정: 자동화 (트리거 상태·설치·아카이브 실행) ── */
-  var AUTO_ITEMS = [
-    { kind: 'morning', label: '아침 리포트 자동 발송', desc: '매일 오전 9시대' },
-    { kind: 'archive', label: '연말 자동 아카이브', desc: '매년 1/1 새벽' }
-  ];
-
-  function loadAuto() {
-    var ul = document.getElementById('auto-list');
-    listLoading(ul);
-    api('admAuto', { token: token }, function (res) {
-      if (!res.ok) { ul.innerHTML = '<li class="empty">' + res.msg + '</li>'; return; }
-      ul.innerHTML = '';
-      AUTO_ITEMS.forEach(function (it) {
-        var on = res[it.kind];
-        var li = document.createElement('li');
-        li.className = 'rowline';
-        var left = document.createElement('span');
-        left.textContent = it.label + ' ';
-        var meta = document.createElement('span');
-        meta.className = 'meta';
-        meta.textContent = '(' + it.desc + ')';
-        left.appendChild(meta);
-        var badge = document.createElement('span');
-        badge.className = 'badge ' + (on ? 'admin' : 'gone');
-        badge.textContent = on ? '설정됨' : '미설정';
-        left.appendChild(badge);
-        var right = document.createElement('span');
-        var btn = document.createElement('button');
-        btn.className = 'fixbtn';
-        btn.textContent = on ? '재설정' : '설정';
-        btn.onclick = function () {
-          var done = busy(btn);
-          api('admInstallTrig', { token: token, kind: it.kind }, function (res2) {
-            done();
-            showAutoMsg(res2);
-            if (res2.ok) loadAuto();
-          }, function () { done(); showAutoMsg({ ok: false, msg: '설정에 실패했습니다.' }); });
-        };
-        right.appendChild(btn);
-        li.appendChild(left); li.appendChild(right);
-        ul.appendChild(li);
-      });
-    }, function () { ul.innerHTML = '<li class="empty">불러오기에 실패했습니다.</li>'; });
-  }
-
+  /* ── 설정: 데이터 정리 ── */
   function showAutoMsg(res) {
     var msg = document.getElementById('adm-auto-msg');
     msg.className = 'adm-msg ' + (res.ok ? 'ok' : 'err');
@@ -1647,7 +1602,6 @@
     }, function () { ul.innerHTML = '<li class="empty">불러오기에 실패했습니다.</li>'; });
   }
 
-  
   function addVac() {
     var msg = document.getElementById('adm-vac-msg');
     var empId = pickVal('v-emp');
