@@ -316,13 +316,20 @@
 
     <!-- 월별 집계 -->
     <div id="sec-monthly" class="sec">
-      <h2>월별 집계</h2>
+      <h2>집계</h2>
+      <div class="seg" style="margin-bottom:10px">
+        <button id="sm-month" class="on" onclick="setSumMode('month')">월간</button>
+        <button id="sm-week" onclick="setSumMode('week')">주간</button>
+      </div>
       <input type="month" id="m-month">
+      <input type="date" id="m-week" style="display:none">
+      <p class="meta" id="m-week-hint" style="display:none;margin-top:6px">선택한 날짜가 속한 주(일~토)를 집계합니다.</p>
       <button id="btn-monthly" class="mini" onclick="loadMonthly()">조회</button>
       <ul id="adm-month-totals" style="margin-top:14px"></ul>
       <p class="meta" id="adm-month-hint" style="display:none;margin-top:10px">직원을 누르면 일별 상세가 표시됩니다.</p>
       <ul id="adm-month-details" style="margin-top:6px"></ul>
 
+      <div id="mail-wrap">
       <h2 style="margin-top:28px">집계 파일 메일 발송</h2>
       <button id="btn-mailme" class="mini" onclick="mailMonthly('')">내 메일로 보내기</button>
       <label style="margin-top:18px">다른 직원에게 보내기</label>
@@ -332,11 +339,12 @@
       </div>
       <button id="btn-mailother" class="mini" onclick="mailMonthlyOther()">선택한 직원에게 보내기</button>
       <div id="adm-mail-msg" class="adm-msg"></div>
+      </div>
     </div>
 
     <!-- 직원 관리 -->
     <div id="sec-emp" class="sec">
-      <h2>직원 목록</h2>
+      <h2>권한 관리</h2>
       <input id="emp-q" placeholder="이름 · 초성 · 아이디로 검색" autocomplete="off"
              autocapitalize="none" oninput="renderEmpList()" style="margin-bottom:6px">
       <ul id="adm-emp-list"><li class="empty">불러오는 중…</li></ul>
@@ -565,11 +573,10 @@
 
   /* ── 메뉴 구조: 그룹 → 세부탭 → 섹션 ── */
   var MENU_GROUPS = [
-    { key: 'today',   label: '금일 현황', admin: true,  tabs: [['today', '현황']] },
-    { key: 'records', label: '기록 조회', admin: true,  tabs: [['records', '조회'], ['monthly', '월별 집계']] },
+    { key: 'records', label: '기록 조회', admin: true,  tabs: [['today', '금일 현황'], ['records', '조회'], ['monthly', '집계']] },
     { key: 'att',     label: '근태 관리', admin: true,  tabs: [['vac', '휴가'], ['missing', '퇴근 누락'], ['manual', '수동 기록']] },
-    { key: 'people',  label: '인원 관리', admin: true,  tabs: [['emp', '직원 목록']] },
-    { key: 'app',     label: '어플 관리', admin: true,  tabs: [['addemp', '직원 추가'], ['pw', '비번 초기화'], ['notify', '알림']] },
+    { key: 'acct',    label: '계정 관리', admin: true,  tabs: [['emp', '권한 관리'], ['addemp', '직원 추가'], ['pw', 'P/W 초기화']] },
+    { key: 'set',     label: '설정',      admin: true,  tabs: [['notify', '알림']] },
     { key: 'me',      label: '내 정보',   admin: false, tabs: [['myrec', '내 기록'], ['leave', '연차 계산']] }
   ];
   var ALL_SECS = ['today', 'records', 'monthly', 'vac', 'missing', 'manual', 'emp', 'addemp', 'pw', 'notify', 'myrec', 'leave'];
@@ -1202,16 +1209,42 @@
     }, function () { alert('처리에 실패했습니다. 다시 시도해 주세요.'); });
   }
 
-  /* ── 관리자: 월별 집계 ── */
+  /* ── 관리자: 집계 (월간/주간) ── */
   var monthDetails = [];
+  var sumMode = 'month';
+
+  function setSumMode(m) {
+    sumMode = m;
+    document.getElementById('sm-month').classList.toggle('on', m === 'month');
+    document.getElementById('sm-week').classList.toggle('on', m === 'week');
+    document.getElementById('m-month').style.display = m === 'month' ? '' : 'none';
+    document.getElementById('m-week').style.display = m === 'week' ? '' : 'none';
+    document.getElementById('m-week-hint').style.display = m === 'week' ? 'block' : 'none';
+    document.getElementById('mail-wrap').style.display = m === 'month' ? '' : 'none'; // 메일은 월간 전용
+    if (m === 'week' && !document.getElementById('m-week').value) {
+      document.getElementById('m-week').value = d2s(new Date());
+    }
+  }
+
   function loadMonthly() {
-    var ym = document.getElementById('m-month').value;
     var tul = document.getElementById('adm-month-totals');
     var dul = document.getElementById('adm-month-details');
     var hint = document.getElementById('adm-month-hint');
-    if (!ym) { tul.innerHTML = '<li class="empty">월을 선택해 주세요.</li>'; return; }
+    var params = { token: token, ym: '', from: '', to: '' };
+    if (sumMode === 'week') {
+      var base = document.getElementById('m-week').value;
+      if (!base) { tul.innerHTML = '<li class="empty">기준 날짜를 선택해 주세요.</li>'; return; }
+      var b = new Date(base + 'T12:00:00');
+      var f = new Date(b); f.setDate(f.getDate() - b.getDay());
+      var t = new Date(f); t.setDate(t.getDate() + 6);
+      params.from = d2s(f); params.to = d2s(t);
+    } else {
+      var ym = document.getElementById('m-month').value;
+      if (!ym) { tul.innerHTML = '<li class="empty">월을 선택해 주세요.</li>'; return; }
+      params.ym = ym;
+    }
     listLoading(tul, '집계 중'); dul.innerHTML = ''; hint.style.display = 'none';
-    api('admMonthly', { token: token, ym: ym }, function (res) {
+    api('admMonthly', params, function (res) {
       if (!res.ok) { tul.innerHTML = '<li class="empty">' + res.msg + '</li>'; return; }
       monthDetails = res.details;
       tul.innerHTML = '';
