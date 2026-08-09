@@ -3,19 +3,20 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-<meta name="theme-color" content="#0f6e56">
+<meta name="theme-color" content="#1f1e30">
 <title>출퇴근 기록</title>
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
 <style>
   :root {
-    --ink: #1c2b2a;
-    --sub: #6b7a78;
-    --line: #e3e8e7;
-    --accent: #0f6e56;
-    --accent-soft: #e1f5ee;
-    --danger: #b3261e;
-    --bg: #fafbfb;
+    /* 러닝비전 브랜드 팔레트 — 로고 군청(#1F1E30) 계열 */
+    --ink: #1f1e30;          /* 본문·강조 텍스트 = 로고 군청 */
+    --sub: #6f6e85;          /* 보조 텍스트: 군청의 밝은 회보라 */
+    --line: #e4e4ec;         /* 경계선: 군청 틴트 */
+    --accent: #34325c;       /* 버튼·포인트: 군청보다 한 단계 밝게 (상호작용 구분) */
+    --accent-soft: #ececf5;  /* 배지·연한 배경 */
+    --danger: #cb2220;       /* 경고·삭제 = 로고 레드 */
+    --bg: #fafafc;           /* 화면 배경: 아주 옅은 군청 틴트 */
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { height: 100%; }
@@ -130,7 +131,7 @@
   .picklist div:last-child { border-bottom: none; }
   .picklist div:active { background: var(--accent-soft); }
   .picklist .none { color: var(--sub); font-size: 13.5px; }
-  .dsat { color: #1a56db; }
+  .dsat { color: #3d5bd9; }
   .dsun { color: var(--danger); }
   .warn { color: var(--danger); font-weight: 600; }
 
