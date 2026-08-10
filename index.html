@@ -912,12 +912,12 @@
           if (res.msg && res.msg.indexOf('변경') >= 0) { show('v-changepw'); }
           return;
         }
-        // 성공 → 서버 확정 시각으로 교체
+      // 성공 → 서버 확정 시각으로 교체
         entry.time = res.time;
         entry.pending = false;
         renderToday(todayData);
-        st.className = 'pstat ok';
-        st.textContent = '완료 · ' + res.time;
+        st.className = 'pstat';
+        st.textContent = '';
       }, function () {
         if (s !== session) return;
         removeEntry(entry);
