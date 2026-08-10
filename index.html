@@ -912,7 +912,7 @@
           if (res.msg && res.msg.indexOf('변경') >= 0) { show('v-changepw'); }
           return;
         }
-      // 성공 → 서버 확정 시각으로 교체
+     // 성공 → 서버 확정 시각으로 교체
         entry.time = res.time;
         entry.pending = false;
         renderToday(todayData);
