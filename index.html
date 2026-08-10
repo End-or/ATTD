@@ -581,6 +581,7 @@
   var empListLoaded = false;
   var cachedLoc = null;   // { lat, lng, ts } — 미리 받아둔 위치
   var todayVac = '';      // 오늘 본인 휴가 종류 (연차 출근 확인창용)
+  var todayLoaded = false; // 오늘 기록을 서버에서 받기 전에는 출퇴근 버튼 잠금 (중복 방지)
   var todayData = [];     // 오늘 기록 (클라이언트 보관)
 
   function show(id) {
@@ -758,13 +759,19 @@
         localStorage.setItem('att_email', res.email || '');
         localStorage.setItem('att_morning', res.morning ? '1' : '0');
         todayVac = res.todayVac || '';
+        todayLoaded = true;
         applyRole(res.role);
         enterMain(dispName(res.name, res.rank), res.today);
         if (res.mustChange) show('v-changepw');
       } else {
         logout();
       }
-    }, function () { if (s !== session) return; if (!savedName) show('v-login'); });
+    }, function () {
+      if (s !== session) return;
+      todayLoaded = true; // 연결 실패 시엔 잠금 해제 (기록 시도 자체는 서버가 재검증함)
+      updatePunchButtons();
+      if (!savedName) show('v-login');
+    });
   }
 
   function applyRole(role) {
@@ -788,7 +795,7 @@
       localStorage.setItem('att_role', res.role || '');
       applyRole(res.role);
       if (res.mustChange) { document.getElementById('u-name').textContent = dispName(res.name, res.rank); show('v-changepw'); }
-      else { enterMain(dispName(res.name, res.rank), []); refreshToday(); }
+      else { todayLoaded = false; enterMain(dispName(res.name, res.rank), []); refreshToday(); }
     }, function () { done(); msg.textContent = '연결에 실패했습니다. 잠시 후 다시 시도해 주세요.'; });
   }
 
@@ -813,6 +820,7 @@
     document.getElementById('u-name').textContent = name;
     if (todayList === null) {
       document.getElementById('today-list').innerHTML = '<li class="empty">불러오는 중…</li>';
+      updatePunchButtons();
     } else {
       todayData = todayList || [];
       renderToday(todayData);
@@ -845,9 +853,14 @@
         localStorage.setItem('att_email', res.email || '');
         localStorage.setItem('att_morning', res.morning ? '1' : '0');
         todayVac = res.todayVac || '';
+        todayLoaded = true;
         applyRole(res.role);
         enterMain(dispName(res.name, res.rank), res.today || []);
       }
+    }, function () {
+      if (s !== session) return;
+      todayLoaded = true;
+      updatePunchButtons();
     });
   }
 
@@ -910,9 +923,10 @@
           if (navigator.vibrate) navigator.vibrate(200);
           if (res.msg && res.msg.indexOf('만료') >= 0) { logout(); }
           if (res.msg && res.msg.indexOf('변경') >= 0) { show('v-changepw'); }
+          if (res.msg && res.msg.indexOf('이미') >= 0) { refreshToday(); } // 서버 기준으로 버튼 상태 동기화
           return;
         }
-     // 성공 → 서버 확정 시각으로 교체
+        // 성공 → 서버 확정 시각으로 교체
         entry.time = res.time;
         entry.pending = false;
         renderToday(todayData);
@@ -955,6 +969,11 @@
 
   /* 오늘 출근/퇴근이 이미 있으면 해당 버튼 잠금 */
   function updatePunchButtons() {
+    if (!todayLoaded) { // 오늘 기록 확인 전 — 임시 잠금
+      document.getElementById('b-in').disabled = true;
+      document.getElementById('b-out').disabled = true;
+      return;
+    }
     var hasIn = todayData.some(function (r) { return r.type === '출근'; });
     var hasOut = todayData.some(function (r) { return r.type === '퇴근'; });
     var bi = document.getElementById('b-in');
