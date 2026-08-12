@@ -273,14 +273,12 @@
   <div id="v-login" class="view">
     <div class="brand">ATTENDANCE</div>
     <h1>출퇴근 기록</h1>
-    <label for="f-id">아이디 (회사 이메일 @ 앞부분)</label>
-    <input id="f-id" placeholder="hong.gd" autocomplete="username" autocapitalize="none" autocorrect="off">
-    <label for="f-pw">비밀번호</label>
-    <input id="f-pw" type="password" placeholder="초기 비밀번호 1234" autocomplete="current-password">
-    <button id="btn-login" class="primary" onclick="login()">로그인</button>
-    <div class="ordiv">또는</div>
+    <div style="display:none">
+      <input id="f-id"><input id="f-pw" type="password">
+      <button id="btn-login" onclick="login()"></button>
+    </div>
     <button class="kakao-btn" onclick="kakaoStart()">카카오로 시작하기</button>
-    <p class="meta" style="margin-top:10px;line-height:1.6">처음이면 카카오 인증 후 본인 이름을 선택하면 등록됩니다.</p>
+    <p class="meta" style="margin-top:12px;line-height:1.7">카카오로 로그인해 주세요.<br>처음이면 인증 후 본인 이름을 선택하면 등록됩니다.<br>초대링크를 받았다면 링크를 다시 열어 진행해 주세요.</p>
     <div id="login-msg" class="msg"></div>
   </div>
 
