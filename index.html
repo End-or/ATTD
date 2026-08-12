@@ -1774,14 +1774,14 @@
     api('kakaoAuth', { code: code }, function (res) {
       if (!res.ok) {
         show('v-login');
-        document.getElementById('lg-msg').textContent = res.msg;
+        document.getElementById('login-msg').textContent = res.msg;
         return;
       }
       if (res.needLink) { showKlink(res); return; }
       applyAuth(res); // 이미 연결된 직원 → 바로 로그인
     }, function () {
       show('v-login');
-      document.getElementById('lg-msg').textContent = '연결에 실패했습니다. 다시 시도해 주세요.';
+      document.getElementById('login-msg').textContent = '연결에 실패했습니다. 다시 시도해 주세요.';
     });
   }
 
