@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#1f1e30">
 <title>출퇴근 관리</title>
 <link rel="manifest" href="manifest-admin.json">
-<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-admin-192.png">
 <style>
   :root {
     /* 러닝비전 브랜드 팔레트 — 로고 군청(#1F1E30) 계열 */
@@ -266,6 +266,18 @@
     </div>
   </div>
 
+  <!-- 관리자 카카오 연결: 이름 선택 -->
+  <div id="v-kadm" class="view">
+    <div class="wrap" style="padding-top:40px">
+      <h1 style="font-size:22px;margin-bottom:10px">카카오 연결</h1>
+      <p class="meta" style="line-height:1.7;margin-bottom:16px">
+        본인 이름을 선택하면 카카오 인증으로 이동하고, 완료되면 이 카카오 계정으로 바로 로그인할 수 있습니다.
+      </p>
+      <ul id="kadm-list"><li class="empty">불러오는 중…</li></ul>
+      <button class="mini" style="margin-top:14px" onclick="show('v-main')">나중에 (앱으로 이동)</button>
+    </div>
+  </div>
+
   <!-- 로딩 -->
   <div id="v-loading" class="view on"><div class="center">확인 중…</div></div>
 
@@ -278,6 +290,9 @@
     <label for="f-pw">비밀번호</label>
     <input id="f-pw" type="password" placeholder="초기 비밀번호 1234" autocomplete="current-password">
     <button id="btn-login" class="primary" onclick="login()">로그인</button>
+    <div class="ordiv">또는</div>
+    <button class="kakao-btn" onclick="kakaoStart()">카카오 로그인</button>
+    <p class="meta" style="margin-top:10px;line-height:1.7">최초 1회는 관리자 계정으로 로그인 후 본인 이름을 선택해 카카오를 연결해 주세요.</p>
     <div id="login-msg" class="msg"></div>
   </div>
 
@@ -787,6 +802,19 @@
 
   /* ── 시작 ── */
   function boot() {
+    var qs = new URLSearchParams(location.search);
+    var kcode = qs.get('code');
+    var kstate = qs.get('state');
+    if (kcode) {
+      history.replaceState(null, '', location.pathname);
+      if (kstate) {
+        if (token) { kadmLink(kcode, kstate); return; }
+        show('v-login');
+        document.getElementById('login-msg').textContent = '세션이 만료되었습니다. 관리자 계정으로 다시 로그인 후 진행해 주세요.';
+        return;
+      }
+      if (!token) { kakaoAdminReturn(kcode); return; }
+    }
     if (!token) { show('v-login'); return; }
     // 저장된 이름이 있으면 검증을 기다리지 않고 바로 메인 표시 (체감 속도)
     var savedName = localStorage.getItem('att_name');
@@ -839,7 +867,7 @@
       localStorage.setItem('att_role', res.role || '');
       applyRole(res.role);
       if (res.mustChange) { document.getElementById('u-name').textContent = dispName(res.name, res.rank); show('v-changepw'); }
-      else { todayLoaded = false; enterMain(dispName(res.name, res.rank), []); refreshToday(); }
+      else { todayLoaded = false; enterMain(dispName(res.name, res.rank), []); refreshToday(); maybeShowKadm(); }
     }, function () { done(); msg.textContent = '연결에 실패했습니다. 잠시 후 다시 시도해 주세요.'; });
   }
 
@@ -872,7 +900,7 @@
     // 사용자가 이미 다른 화면(메뉴 등)에 가 있으면 데이터만 갱신하고 화면은 건드리지 않음
     var cur = document.querySelector('.view.on');
     if (!cur || cur.id === 'v-loading' || cur.id === 'v-login' || cur.id === 'v-main'
-        || cur.id === 'v-klink' || cur.id === 'v-invite') {
+        || cur.id === 'v-klink' || cur.id === 'v-invite' || cur.id === 'v-kadm') {
       show('v-main');
     }
     prefetchLocation();
@@ -910,7 +938,7 @@
   }
 
   var KAKAO_KEY = 'e288962f8abd937ac704064958ea1f0c';
-  var KAKAO_REDIRECT = 'https://end-or.github.io/ATTD/'; // 카카오 콘솔 등록값과 동일해야 함
+  var KAKAO_REDIRECT = 'https://end-or.github.io/ATTD/admin.html'; // 관리자 앱 Redirect URI (콘솔 등록값과 동일)
 
   var LEAVE_TIME = '17:30'; // 정규 퇴근 시각 (변경 시 여기만 수정)
   var DAY_START = '03:00';  // 하루 경계(백엔드와 동일) — 이 시각 전 퇴근은 심야 퇴근으로 취급
@@ -1736,11 +1764,51 @@
   }
 
   /* ── 카카오 로그인 ── */
-  function kakaoStart() {
+  function kakaoStart(state) {
     location.href = 'https://kauth.kakao.com/oauth/authorize'
       + '?client_id=' + KAKAO_KEY
       + '&redirect_uri=' + encodeURIComponent(KAKAO_REDIRECT)
-      + '&response_type=code';
+      + '&response_type=code'
+      + (state ? '&state=' + encodeURIComponent(state) : '');
+  }
+
+  /* 카카오 복귀: state 있으면 연결 모드(로그인 세션 필요), 없으면 로그인 모드 */
+  function kakaoAdminReturn(code) {
+    show('v-loading');
+    api('kakaoAuthAdmin', { code: code }, function (res) {
+      if (!res.ok) { show('v-login'); document.getElementById('login-msg').textContent = res.msg; return; }
+      applyAuth(res);
+    }, function () { show('v-login'); document.getElementById('login-msg').textContent = '연결에 실패했습니다. 다시 시도해 주세요.'; });
+  }
+
+  function kadmLink(code, empId) {
+    show('v-loading');
+    api('kakaoLinkAdmin', { token: token, code: code, empId: empId }, function (res) {
+      if (!res.ok) { show('v-login'); document.getElementById('login-msg').textContent = res.msg; return; }
+      applyAuth(res); // 연결된 본인 계정으로 세션 전환
+    }, function () { show('v-login'); document.getElementById('login-msg').textContent = '연결에 실패했습니다. 다시 시도해 주세요.'; });
+  }
+
+  /* 로그인 후: 미연결 관리자가 있으면 연결 화면 제안 */
+  function maybeShowKadm() {
+    api('kadmList', { token: token }, function (res) {
+      if (!res.ok || !res.rows || res.rows.length === 0) return;
+      var ul = document.getElementById('kadm-list');
+      ul.innerHTML = '';
+      res.rows.forEach(function (e) {
+        var li = document.createElement('li');
+        li.className = 'rowline';
+        li.style.cursor = 'pointer';
+        li.innerHTML = '<span></span><span class="t meta">선택</span>';
+        li.children[0].textContent = dispName(e.name, e.rank);
+        li.onclick = function () {
+          if (!confirm(dispName(e.name, e.rank) + '님이 맞습니까?\n카카오 인증으로 이동합니다.')) return;
+          kakaoStart(e.id);
+        };
+        ul.appendChild(li);
+      });
+      show('v-kadm');
+    });
   }
 
   function applyAuth(res) {
