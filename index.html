@@ -885,7 +885,8 @@
     }
     // 사용자가 이미 다른 화면(메뉴 등)에 가 있으면 데이터만 갱신하고 화면은 건드리지 않음
     var cur = document.querySelector('.view.on');
-    if (!cur || cur.id === 'v-loading' || cur.id === 'v-login' || cur.id === 'v-main') {
+    if (!cur || cur.id === 'v-loading' || cur.id === 'v-login' || cur.id === 'v-main'
+        || cur.id === 'v-klink' || cur.id === 'v-invite') {
       show('v-main');
     }
     prefetchLocation();
