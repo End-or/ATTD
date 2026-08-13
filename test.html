@@ -152,7 +152,7 @@
   .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
   .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
   .cal-dow { text-align: center; font-size: 12px; color: var(--sub); font-weight: 600; padding: 2px 0; }
-  .cal-cell { min-height: 62px; border: 1px solid var(--line); border-radius: 8px; padding: 4px; background: #fff; cursor: pointer; overflow: hidden; }
+  .cal-cell { height: 74px; border: 1px solid var(--line); border-radius: 8px; padding: 4px; background: #fff; cursor: pointer; overflow: hidden; }
   .cal-cell.today { border-color: var(--accent); border-width: 1.5px; }
   .cal-cell.sel { background: var(--accent-soft); border-color: var(--accent); }
   .cal-day { font-size: 12px; font-weight: 600; }
@@ -845,16 +845,16 @@
       num.textContent = d;
       cell.appendChild(num);
       var evs = byDate[ds] || [];
-      evs.slice(0, 3).forEach(function (r) {
+      evs.slice(0, 2).forEach(function (r) {
         var ev = document.createElement('div');
         ev.className = 'cal-ev' + (r.done ? ' done' : '');
         ev.textContent = r.title;
         cell.appendChild(ev);
       });
-      if (evs.length > 3) {
+      if (evs.length > 2) {
         var more = document.createElement('div');
         more.className = 'cal-more';
-        more.textContent = '+' + (evs.length - 3) + '개';
+        more.textContent = '+' + (evs.length - 2) + '개';
         cell.appendChild(more);
       }
       (function (dsx) {
@@ -1766,12 +1766,22 @@
     if (!date || !time) { msg.className = 'adm-msg err'; msg.textContent = '날짜와 시각을 입력해 주세요.'; return; }
     msg.className = 'adm-msg'; msg.textContent = '';
     var done = busy(document.getElementById('btn-manual'));
-    api('admAddRecord', { token: token, empId: empId, date: date, time: time, type: type }, function (res) {
-      done();
-      if (res.ok) clearAdmCache();
-      msg.className = 'adm-msg ' + (res.ok ? 'ok' : 'err');
-      msg.textContent = res.msg;
-    }, function () { done(); msg.className = 'adm-msg err'; msg.textContent = '추가에 실패했습니다.'; });
+    var send = function (ow) {
+      api('admAddRecord', { token: token, empId: empId, date: date, time: time, type: type, overwrite: ow }, function (res) {
+        if (res && res.needConfirm && !ow) {
+          if (confirm(res.msg + '\n기존 기록을 지우고 ' + time + '(으)로 수정할까요?')) { send(true); return; }
+          done();
+          msg.className = 'adm-msg';
+          msg.textContent = '취소했습니다.';
+          return;
+        }
+        done();
+        if (res.ok) clearAdmCache();
+        msg.className = 'adm-msg ' + (res.ok ? 'ok' : 'err');
+        msg.textContent = res.msg;
+      }, function () { done(); msg.className = 'adm-msg err'; msg.textContent = '추가에 실패했습니다.'; });
+    };
+    send(false);
   }
 
   /* ── 관리자: 휴가 관리 ── */
