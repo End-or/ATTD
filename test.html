@@ -1,0 +1,1929 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<meta name="theme-color" content="#1f1e30">
+<title>출퇴근 기록 (Supabase TEST)</title>
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  :root {
+    /* 러닝비전 브랜드 팔레트 — 로고 군청(#1F1E30) 계열 */
+    --ink: #1f1e30;          /* 본문·강조 텍스트 = 로고 군청 */
+    --sub: #6f6e85;          /* 보조 텍스트: 군청의 밝은 회보라 */
+    --line: #e4e4ec;         /* 경계선: 군청 틴트 */
+    --accent: #34325c;       /* 버튼·포인트: 군청보다 한 단계 밝게 (상호작용 구분) */
+    --accent-soft: #ececf5;  /* 배지·연한 배경 */
+    --danger: #cb2220;       /* 경고·삭제 = 로고 레드 */
+    --bg: #fafafc;           /* 화면 배경: 아주 옅은 군청 틴트 */
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    background: var(--bg); color: var(--ink);
+    display: flex; justify-content: center;
+  }
+  .app { width: 100%; max-width: 420px; min-height: 100%; padding: 28px 22px 40px; display: flex; flex-direction: column; }
+  .view { display: none; flex: 1; flex-direction: column; }
+  .view.on { display: flex; }
+
+  .brand { font-size: 15px; letter-spacing: .12em; color: var(--sub); margin-bottom: 6px; }
+  h1 { font-size: 26px; font-weight: 700; margin-bottom: 32px; }
+
+  label { font-size: 13px; color: var(--sub); display: block; margin: 18px 0 6px; }
+  input, select {
+    width: 100%; font-size: 17px; padding: 14px 14px;
+    border: 1px solid var(--line); border-radius: 12px; background: #fff;
+    outline: none; color: var(--ink);
+  }
+  input:focus, select:focus { border-color: var(--accent); }
+
+  button { font-family: inherit; cursor: pointer; border: none; border-radius: 14px; }
+  .primary {
+    width: 100%; margin-top: 28px; padding: 16px;
+    font-size: 17px; font-weight: 600; color: #fff; background: var(--accent);
+  }
+  .primary:active { opacity: .85; }
+  .msg { min-height: 20px; margin-top: 14px; font-size: 14px; color: var(--danger); }
+
+  /* 상단 탭 (관리자만 노출) */
+  .tabs { display: none; gap: 8px; margin-bottom: 24px; }
+  .tabs.show { display: flex; }
+  .tab {
+    flex: 1; padding: 11px 0; font-size: 15px; font-weight: 600;
+    background: #fff; border: 1px solid var(--line); border-radius: 12px; color: var(--sub);
+  }
+  .tab.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+
+  /* 출퇴근 화면 */
+  .hello { font-size: 15px; color: var(--sub); }
+  .clock { font-size: 44px; font-weight: 700; font-variant-numeric: tabular-nums; margin: 4px 0 2px; }
+  .date { font-size: 14px; color: var(--sub); margin-bottom: 30px; }
+
+  .btn-wrap { display: flex; gap: 12px; }
+  .pcol { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+  .pstat { min-height: 21px; font-size: 14px; text-align: center; }
+  .pstat.ok { color: var(--accent); font-weight: 600; }
+  .pstat.err { color: var(--danger); font-weight: 600; }
+  .punch { width: 100%; padding: 34px 0; font-size: 20px; font-weight: 700; border-radius: 18px; }
+  .in  { background: var(--accent); color: #fff; }
+  .out { background: #fff; color: var(--ink); border: 1.5px solid var(--ink); }
+  .punch:disabled { opacity: .45; }
+  .punch:active { opacity: .8; }
+
+  .status { margin-top: 18px; font-size: 15px; min-height: 22px; }
+  .status.ok { color: var(--accent); font-weight: 600; }
+  .status.err { color: var(--danger); }
+
+  .today { margin-top: 34px; }
+  .today h2, .sec h2 { font-size: 14px; color: var(--sub); font-weight: 600; margin-bottom: 10px; }
+  ul { list-style: none; }
+  .rowline {
+    display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; gap: 6px 8px; padding: 11px 4px;
+    border-bottom: 1px solid var(--line); font-size: 15px;
+  }
+  .rowline > span:first-child { flex: 1 1 auto; min-width: 0; word-break: break-all; }
+  .rowline > span:last-child { flex: 0 0 auto; white-space: nowrap; margin-left: auto; }
+  .rowline .t { font-variant-numeric: tabular-nums; color: var(--sub); white-space: nowrap; }
+  .empty { color: var(--sub); font-size: 14px; padding: 8px 4px; }
+  .tag { font-weight: 600; }
+  .tag.i { color: var(--accent); }
+  .pending { opacity: .5; }
+  .fixbtn {
+    margin-left: 8px; padding: 5px 10px; font-size: 12.5px; font-weight: 600;
+    background: var(--accent-soft); color: var(--accent); border-radius: 8px; white-space: nowrap;
+  }
+  .fixbtn:disabled, .mini:disabled, .primary:disabled { opacity: .55; }
+
+  /* 상태 배지 */
+  .badge {
+    display: inline-block; margin-left: 6px; padding: 2px 8px;
+    font-size: 11.5px; font-weight: 700; border-radius: 20px; vertical-align: 1px;
+  }
+  .badge.admin { background: var(--accent-soft); color: var(--accent); }
+  .badge.staff { background: #eef1f0; color: var(--sub); }
+  .badge.gone  { background: #fdecea; color: var(--danger); }
+
+  /* 진행 중 스피너 */
+  .spin {
+    display: inline-block; width: 14px; height: 14px; vertical-align: -2px;
+    border: 2px solid rgba(0,0,0,.15); border-top-color: var(--accent);
+    border-radius: 50%; animation: sp .7s linear infinite;
+  }
+  button .spin { border-color: rgba(255,255,255,.4); border-top-color: #fff; }
+  .fixbtn .spin { border-color: rgba(15,110,86,.25); border-top-color: var(--accent); width: 11px; height: 11px; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+  .loading-line { color: var(--sub); font-size: 14px; padding: 10px 4px; }
+
+  /* 직원 검색 피커 */
+  .pickwrap { position: relative; }
+  .picklist {
+    display: none; position: absolute; left: 0; right: 0; top: 100%; margin-top: 4px;
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    max-height: 200px; overflow-y: auto; z-index: 40;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, .08);
+  }
+  .picklist.on { display: block; }
+  .picklist div { padding: 11px 14px; font-size: 15px; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .picklist div:last-child { border-bottom: none; }
+  .picklist div:active { background: var(--accent-soft); }
+  .picklist .none { color: var(--sub); font-size: 13.5px; }
+  .kakao-btn {
+    width: 100%; margin-top: 12px; padding: 15px 0;
+    background: #FEE500; color: #191919; font-size: 16px; font-weight: 700;
+    border-radius: 12px;
+  }
+  .kakao-btn:active { opacity: .85; }
+  .ordiv { display: flex; align-items: center; gap: 10px; margin: 18px 0 2px; color: var(--sub); font-size: 12.5px; }
+  .ordiv::before, .ordiv::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+  .dsat { color: #3d5bd9; }
+  .dsun { color: var(--danger); }
+  .dayhead {
+    margin: 16px 0 2px; padding: 7px 12px;
+    font-size: 13.5px; font-weight: 700; color: var(--ink);
+    background: var(--accent-soft); border-radius: 8px;
+  }
+  li.dayhead + li.rowline { border-top: none; }
+  .warn { color: var(--danger); font-weight: 600; }
+
+  /* 관리자 화면 */
+  .seg { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 20px; }
+  .seg button {
+    flex: 1 1 30%; padding: 10px 0; font-size: 13.5px; font-weight: 600;
+    background: #fff; border: 1px solid var(--line); border-radius: 10px; color: var(--sub);
+  }
+  .seg .segbreak { flex-basis: 100%; height: 0; }
+  .seg button.personal { border-style: dashed; }
+  .gear {
+    position: absolute; right: 0; top: 50%; transform: translateY(-50%);
+    width: 40px; height: 40px; padding: 0;
+    background: none; border: none; color: var(--sub);
+    display: none; align-items: center; justify-content: center;
+  }
+  .gear.show { display: flex; }
+  .gear:active { color: var(--ink); }
+  .meta { font-size: 12.5px; color: var(--sub); }
+  .seg button.on { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+
+  /* 상위 그룹(메뉴 1단): 활성 시 군청 채움 — 하위 탭과 확실히 구분 */
+  #menu-groups button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  /* 하위 탭(메뉴 2단): 버튼 대신 밑줄 탭 — 상위와 같은 모양이라 헷갈리던 문제 해소 */
+  #menu-subtabs { gap: 0; margin-top: -8px; margin-bottom: 16px; border-bottom: 1.5px solid var(--line); }
+  #menu-subtabs button {
+    flex: 0 1 auto; padding: 9px 14px 10px; font-size: 13.5px;
+    background: none; border: none; border-radius: 0; color: var(--sub);
+    border-bottom: 2.5px solid transparent; margin-bottom: -1.5px;
+  }
+  #menu-subtabs button.on {
+    background: none; color: var(--ink); font-weight: 700;
+    border-bottom-color: var(--accent);
+  }
+  .sec { display: none; }
+  .sec.on { display: block; }
+  .mini {
+    margin-top: 14px; width: 100%; padding: 13px;
+    font-size: 15px; font-weight: 600; color: #fff; background: var(--ink); border-radius: 12px;
+  }
+  .mini:active { opacity: .85; }
+  .mini.red { background: var(--danger); }
+  .range { display: flex; gap: 8px; }
+  .range input { font-size: 15px; padding: 12px 10px; }
+  .adm-msg { min-height: 20px; margin-top: 12px; font-size: 14px; }
+  .adm-msg.ok { color: var(--accent); }
+  .adm-msg.err { color: var(--danger); }
+
+  .foot { margin-top: auto; padding-top: 30px; text-align: center; }
+  .linkbtn { background: none; color: var(--sub); font-size: 13px; text-decoration: underline; }
+
+  .center { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--sub); }
+
+  /* 조기 퇴근 확인 모달 */
+  .overlay {
+    display: none; position: fixed; inset: 0; z-index: 50;
+    background: rgba(20, 30, 29, .45);
+    align-items: flex-end; justify-content: center;
+  }
+  .overlay.on { display: flex; }
+  .sheet {
+    width: 100%; max-width: 420px; background: #fff;
+    border-radius: 20px 20px 0 0; padding: 24px 22px 30px;
+  }
+  .sheet h3 { font-size: 18px; margin-bottom: 6px; }
+  .sheet .sub { font-size: 14px; color: var(--sub); margin-bottom: 18px; line-height: 1.5; }
+  .reasons { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .reasons label {
+    margin: 0; padding: 10px 14px; font-size: 14.5px; color: var(--ink);
+    border: 1px solid var(--line); border-radius: 20px; cursor: pointer;
+  }
+  .reasons input { display: none; }
+  .reasons input:checked + span { color: var(--accent); font-weight: 700; }
+  .reasons label:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+  .sheet-btns { display: flex; gap: 10px; margin-top: 18px; }
+  .sheet-btns .mini { margin-top: 0; }
+  .sheet-btns .ghost { background: #fff; color: var(--sub); border: 1px solid var(--line); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- 초대 등록 -->
+  <div id="v-invite" class="view">
+    <div class="center" style="flex-direction:column;padding:32px 22px;text-align:center">
+      <div style="max-width:340px;width:100%">
+        <h1 style="font-size:22px;margin-bottom:12px">직원 등록</h1>
+        <p id="inv-msg" class="meta" style="line-height:1.7;margin-bottom:18px">확인 중…</p>
+        <div id="inv-guide" style="display:none;text-align:left" class="meta">
+          <p style="line-height:1.9">
+            1. 브라우저 메뉴에서 <b>홈 화면에 추가</b>로 앱을 설치해 주세요.<br>
+            &nbsp;&nbsp;· 아이폰: 공유(&#x2191;) &rarr; 홈 화면에 추가<br>
+            &nbsp;&nbsp;· 안드로이드: &#8942; 메뉴 &rarr; 홈 화면에 추가<br>
+            2. 홈 화면의 <b>출퇴근 앱</b>을 열면 등록 버튼이 나타납니다.
+          </p>
+          <p style="margin-top:12px;line-height:1.7">
+            카카오톡 안에서 열렸다면 우측 하단 &#8942; &rarr; <b>다른 브라우저로 열기</b> 후 진행해 주세요.
+          </p>
+        </div>
+        <button id="btn-invreg" class="primary" style="display:none;margin-top:8px" onclick="invRegister()">이 기기로 등록 완료하기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 카카오 최초 연결: 이름 선택 -->
+  <div id="v-klink" class="view">
+    <div class="wrap" style="padding-top:40px">
+      <h1 style="font-size:22px;margin-bottom:10px">이름 선택</h1>
+      <p class="meta" style="line-height:1.7;margin-bottom:16px">
+        카카오 인증이 완료되었습니다. <b>본인 이름</b>을 선택하면 이 카카오 계정과 연결되며,
+        이후에는 카카오 로그인만으로 이용할 수 있습니다.<br>
+        연결 내역은 관리자가 확인할 수 있으니 반드시 본인 이름만 선택해 주세요.
+      </p>
+      <ul id="klink-list"><li class="empty">불러오는 중…</li></ul>
+      <div id="klink-msg" class="adm-msg"></div>
+    </div>
+  </div>
+
+  <!-- 로딩 -->
+  <div id="v-loading" class="view on"><div class="center">확인 중…</div></div>
+
+  <!-- 로그인 -->
+  <div id="v-login" class="view">
+    <div class="brand">ATTENDANCE · SUPABASE TEST</div>
+    <h1>출퇴근 기록</h1>
+    <div style="display:none">
+      <input id="f-id"><input id="f-pw" type="password">
+      <button id="btn-login" onclick="login()"></button>
+    </div>
+    <button class="kakao-btn" onclick="kakaoStart()">카카오로 시작하기</button>
+    <p class="meta" style="margin-top:12px;line-height:1.7">카카오로 로그인해 주세요.<br>처음이면 인증 후 본인 이름을 선택하면 등록됩니다.<br>초대링크를 받았다면 링크를 다시 열어 진행해 주세요.</p>
+    <div id="login-msg" class="msg"></div>
+  </div>
+
+  <!-- 비밀번호 변경 -->
+  <div id="v-changepw" class="view">
+    <div class="brand">ATTENDANCE</div>
+    <h1>비밀번호 변경</h1>
+    <p style="font-size:14px;color:var(--sub);line-height:1.6">
+      초기 비밀번호(1234)를 사용 중입니다.<br>새 비밀번호를 설정해 주세요.
+    </p>
+    <label for="f-npw">새 비밀번호 (6자 이상)</label>
+    <input id="f-npw" type="password" autocomplete="new-password">
+    <label for="f-npw2">새 비밀번호 확인</label>
+    <input id="f-npw2" type="password" autocomplete="new-password">
+    <button id="btn-chpw" class="primary" onclick="changePw()">변경하고 시작하기</button>
+    <div id="pw-msg" class="msg"></div>
+  </div>
+
+  <!-- 메인 (출퇴근) -->
+  <div id="v-main" class="view">
+    <div id="tabbar" class="tabs show">
+      <button class="tab on" onclick="gotoTab('main')">출퇴근</button>
+      <button class="tab" onclick="gotoTab('menu')">메뉴</button>
+    </div>
+
+    <div class="hello"><span id="u-name"></span>님</div>
+    <div class="clock" id="clock">--:--:--</div>
+    <div class="date" id="date"></div>
+
+    <div class="btn-wrap">
+      <div class="pcol">
+        <div id="st-in" class="pstat"></div>
+        <button id="b-in" class="punch in" onclick="punch('출근')">출근</button>
+      </div>
+      <div class="pcol">
+        <div id="st-out" class="pstat"></div>
+        <button id="b-out" class="punch out" onclick="punch('퇴근')">퇴근</button>
+      </div>
+    </div>
+
+    <div class="today">
+      <h2>오늘 기록</h2>
+      <ul id="today-list"></ul>
+    </div>
+
+    <div class="foot"><button class="linkbtn" onclick="logout()">로그아웃</button></div>
+  </div>
+
+  <!-- 관리자 -->
+  <div id="v-admin" class="view">
+    <div class="tabs show" style="position:relative">
+      <button class="tab" onclick="gotoTab('main')">출퇴근</button>
+      <button class="tab on" onclick="gotoTab('menu')">메뉴</button>
+      <button id="btn-gear" class="gear" onclick="openGroup('set')" title="설정" aria-label="설정"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></button>
+    </div>
+
+    <div class="seg" id="menu-groups"></div>
+    <div class="seg" id="menu-subtabs" style="display:none"></div>
+
+    <!-- 오늘 현황 -->
+    <div id="sec-today" class="sec on">
+      <h2>금일 출퇴근 현황</h2>
+      <ul id="adm-today-list"><li class="empty">불러오는 중…</li></ul>
+      <button class="mini" onclick="loadAdminToday(true)">새로고침</button>
+    </div>
+
+    <!-- 기록 조회 -->
+    <div id="sec-records" class="sec">
+      <h2>기록 조회</h2>
+      <label>직원</label>
+      <div class="pickwrap">
+        <input class="pickin" id="q-emp" placeholder="전체 — 이름/초성으로 검색" autocomplete="off">
+        <div class="picklist" id="q-emp-list"></div>
+      </div>
+      <label>기간</label>
+      <div class="range">
+        <input type="date" id="q-from">
+        <input type="date" id="q-to">
+      </div>
+      <div class="seg" style="margin-top:8px;margin-bottom:0">
+        <button type="button" onclick="setQRange('7d')">최근 7일</button>
+        <button type="button" onclick="setQRange('tm')">이번 달</button>
+        <button type="button" onclick="setQRange('lm')">지난달</button>
+      </div>
+      <button class="mini" onclick="queryRecords()">조회</button>
+      <ul id="adm-rec-list" style="margin-top:14px"></ul>
+    </div>
+
+    <!-- 퇴근 누락 -->
+    <div id="sec-missing" class="sec">
+      <h2>퇴근 누락 (최근 30일)</h2>
+      <ul id="adm-miss-list"><li class="empty">불러오는 중…</li></ul>
+
+      <h2 style="margin-top:26px">휴가 미등록 조기퇴근</h2>
+      <ul id="adm-pend-list"></ul>
+
+      <button class="mini" onclick="loadMissing(true)">새로고침</button>
+      <p style="font-size:13px;color:var(--sub);margin-top:12px;line-height:1.6">
+        [정정]을 누르면 입력한 시각으로 퇴근 기록이 추가되고, 시트에는 '정정' 상태와
+        처리자가 함께 남습니다. 직원이 반차 사유로 일찍 퇴근한 건은 [휴가 등록]을 누르면
+        해당 날짜에 반차가 등록되고 목록에서 사라집니다.
+      </p>
+    </div>
+
+    <!-- 월별 집계 -->
+    <div id="sec-monthly" class="sec">
+      <h2>집계</h2>
+      <div class="seg" style="margin-bottom:10px">
+        <button id="sm-month" class="on" onclick="setSumMode('month')">월간</button>
+        <button id="sm-week" onclick="setSumMode('week')">주간</button>
+      </div>
+      <input type="month" id="m-month">
+      <input type="date" id="m-week" style="display:none">
+      <p class="meta" id="m-week-hint" style="display:none;margin-top:6px">선택한 날짜가 속한 주(일~토)를 집계합니다.</p>
+      <button id="btn-monthly" class="mini" onclick="loadMonthly()">조회</button>
+      <ul id="adm-month-totals" style="margin-top:14px"></ul>
+      <p class="meta" id="adm-month-hint" style="display:none;margin-top:10px">직원을 누르면 일별 상세가 표시됩니다.</p>
+      <ul id="adm-month-details" style="margin-top:6px"></ul>
+
+      <div id="mail-wrap">
+      <h2 style="margin-top:28px">집계 파일 메일 발송</h2>
+      <button id="btn-mailme" class="mini" onclick="mailMonthly('')">내 메일로 보내기</button>
+      <label style="margin-top:18px">다른 직원에게 보내기</label>
+      <div class="pickwrap">
+        <input class="pickin" id="m-mailto-emp" placeholder="이름/초성으로 검색" autocomplete="off">
+        <div class="picklist" id="m-mailto-emp-list"></div>
+      </div>
+      <button id="btn-mailother" class="mini" onclick="mailMonthlyOther()">선택한 직원에게 보내기</button>
+      <div id="adm-mail-msg" class="adm-msg"></div>
+      </div>
+
+      <h2 style="margin-top:30px">지난해 기록 정리</h2>
+      <p class="meta" style="margin-bottom:8px;line-height:1.6">
+        지난해 기록을 '기록_연도' 탭으로 옮깁니다 (삭제 아님).
+        매년 1월 1일 새벽 자동 실행되므로 평소엔 누를 필요 없고, 미리 정리하고 싶을 때만 사용합니다.
+      </p>
+      <button id="btn-arcnow" class="mini red" onclick="archiveNow()">지난해 기록 정리 실행</button>
+      <div id="adm-auto-msg" class="adm-msg"></div>
+    </div>
+
+    <!-- 직원 관리 -->
+    <div id="sec-emp" class="sec">
+      <h2>권한 관리</h2>
+      <input id="emp-q" placeholder="이름 · 초성 · 아이디로 검색" autocomplete="off"
+             autocapitalize="none" oninput="renderEmpList()" style="margin-bottom:6px">
+      <ul id="adm-emp-list"><li class="empty">불러오는 중…</li></ul>
+      <div id="adm-emp-msg" class="adm-msg"></div>
+    </div>
+
+    <!-- 직원 추가 -->
+    <div id="sec-addemp" class="sec">
+      <h2>직원 추가</h2>
+      <label>회사 이메일 (아이디 = @ 앞부분)</label>
+      <input id="e-email" type="email" placeholder="hong.gd@company.com" autocapitalize="none">
+      <label>이름</label>
+      <input id="e-name">
+      <label>직급</label>
+      <input id="e-rank" placeholder="사원 / 대리 / 과장 …">
+      <label>권한</label>
+      <select id="e-role"><option>직원</option><option>관리자</option></select>
+      <button id="btn-addemp" class="mini" onclick="addEmp()">추가 (초기 비밀번호 1234)</button>
+      <div id="adm-add-msg" class="adm-msg"></div>
+    </div>
+
+    <!-- 수동 기록 -->
+    <div id="sec-manual" class="sec">
+      <h2>수동 기록 추가</h2>
+      <label>직원</label>
+      <div class="pickwrap">
+        <input class="pickin" id="m-emp" placeholder="이름/초성으로 검색" autocomplete="off">
+        <div class="picklist" id="m-emp-list"></div>
+      </div>
+      <label>날짜 · 구분 · 시각</label>
+      <input type="date" id="m-date">
+      <div class="range" style="margin-top:8px">
+        <select id="m-type"><option>출근</option><option>퇴근</option></select>
+        <input type="time" id="m-time">
+      </div>
+      <button id="btn-manual" class="mini" onclick="addManualRecord()">기록 추가</button>
+      <div id="adm-manual-msg" class="adm-msg"></div>
+      <p class="meta" style="margin-top:10px;line-height:1.6">
+        추가된 기록은 시트에 '정정' 상태와 처리자 이름이 함께 남습니다.
+      </p>
+    </div>
+
+    <!-- 휴가 관리 -->
+    <div id="sec-vac" class="sec">
+      <h2>휴가 등록</h2>
+      <label>직원</label>
+      <div class="pickwrap">
+        <input class="pickin" id="v-emp" placeholder="이름/초성으로 검색" autocomplete="off">
+        <div class="picklist" id="v-emp-list"></div>
+      </div>
+      <label>기간 (하루면 시작일만)</label>
+      <div class="range">
+        <input type="date" id="v-from">
+        <input type="date" id="v-to">
+      </div>
+      <label>종류</label>
+      <select id="v-kind"><option>연차</option><option>오전반차</option><option>오후반차</option><option>공가</option><option>기타</option></select>
+      <input id="v-memo" placeholder="메모 (선택)" style="margin-top:8px">
+      <button id="btn-vacadd" class="mini" onclick="addVac()">등록</button>
+      <div id="adm-vac-msg" class="adm-msg"></div>
+
+      <h2 style="margin-top:28px">등록된 휴가</h2>
+      <div class="seg" style="margin-bottom:10px">
+        <button id="vf-day" class="on" onclick="setVacFilter('day')">오늘</button>
+        <button id="vf-week" onclick="setVacFilter('week')">이번 주</button>
+        <button id="vf-month" onclick="setVacFilter('month')">이번 달</button>
+      </div>
+      <ul id="adm-vac-list"><li class="empty">불러오는 중…</li></ul>
+      <p class="meta" style="margin-top:10px;line-height:1.6">
+        휴가일은 오늘 현황과 월별 집계에 자동 반영됩니다.
+      </p>
+    </div>
+
+    <!-- 알림 설정 -->
+    <div id="sec-notify" class="sec">
+      <h2>알림 설정</h2>
+      <label style="display:flex;align-items:center;gap:10px;font-size:15px;color:var(--ink);margin:16px 0 8px;cursor:pointer">
+        <input type="checkbox" id="chk-morning" style="width:20px;height:20px;accent-color:var(--accent)" onchange="toggleMorning()">
+        매일 아침 리포트 메일 받기
+      </label>
+      <p class="meta" style="line-height:1.6">
+        오늘 미출근자(휴가자 구분)와 어제 퇴근 누락을 오전 9시대에 등록된 회사 이메일로 보냅니다.
+        보고할 내용이 없는 날(주말 등)에는 보내지 않습니다.
+      </p>
+      <div id="adm-notify-msg" class="adm-msg"></div>
+
+    </div>
+
+    <!-- 내 기록 (전 직원) -->
+    <div id="sec-myrec" class="sec">
+      <h2 id="myrec-title">이번 달 내 기록</h2>
+      <ul id="myrec-list"></ul>
+      <button class="mini" onclick="loadMyMonth(true)">새로고침</button>
+    </div>
+
+    <!-- 연차 계산 (전 직원) -->
+    <div id="sec-leave" class="sec">
+      <h2>올해 연차 계산</h2>
+      <p class="meta" style="margin-bottom:8px;line-height:1.6">부여받은 연차 개수를 입력하면 올해 사용한 휴가를 집계해 잔여를 계산합니다. (저장되지 않음)</p>
+      <input id="lv-total" inputmode="decimal" placeholder="부여받은 연차 개수 입력">
+      <button id="btn-lvcalc" class="mini" onclick="calcLeave()">계산</button>
+      <div id="leave-info" class="meta" style="margin-top:10px"></div>
+    </div>
+
+    <!-- 비번 초기화 -->
+    <div id="sec-pw" class="sec">
+      <h2>비밀번호 초기화</h2>
+      <label>직원 선택</label>
+      <div class="pickwrap">
+        <input class="pickin" id="r-emp" placeholder="이름/초성으로 검색" autocomplete="off">
+        <div class="picklist" id="r-emp-list"></div>
+      </div>
+      <button id="btn-resetpw" class="mini red" onclick="resetPw()">1234로 초기화</button>
+      <div id="adm-pw-msg" class="adm-msg"></div>
+      <p style="font-size:13px;color:var(--sub);margin-top:12px;line-height:1.6">
+        초기화하면 해당 직원의 모든 기기에서 로그아웃되며, 초기 비밀번호(1234)로
+        다시 로그인한 뒤 새 비밀번호를 설정하게 됩니다.
+      </p>
+    </div>
+
+    <div class="foot"><button class="linkbtn" onclick="logout()">로그아웃</button></div>
+  </div>
+
+</div>
+
+<!-- 조기 퇴근 확인 -->
+<div id="ov-leave" class="overlay">
+  <div class="sheet">
+    <h3>퇴근 시간 전입니다</h3>
+    <p class="sub">정규 퇴근 시각(<span id="lv-std"></span>) 이전입니다.<br>사유를 선택하고 퇴근 처리해 주세요.</p>
+    <div class="reasons">
+      <label><input type="radio" name="lv-r" value="오후반차" checked><span>오후반차</span></label>
+      <label><input type="radio" name="lv-r" value="조퇴"><span>조퇴</span></label>
+      <label><input type="radio" name="lv-r" value="외근"><span>외근</span></label>
+      <label><input type="radio" name="lv-r" value="기타"><span>기타</span></label>
+    </div>
+    <input id="lv-detail" placeholder="추가 메모 (선택)">
+    <div class="sheet-btns">
+      <button class="mini ghost" onclick="closeLeaveModal()">취소</button>
+      <button class="mini" onclick="confirmLeave()">퇴근 처리</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ★ 배포 후 Apps Script 웹앱 URL(/exec)로 교체할 것 ★
+  var API_URL = 'https://aoikuhpklbtjpuuulmgq.supabase.co/functions/v1/api';
+
+  /* 관리자 데이터 캐시 — 메뉴 이동 시 재조회 없이 즉시 표시 (화면 성격별 차등 TTL) */
+  var admCache = {};
+  var TTL_SHORT = 60 * 1000;      // 1분: 실시간성이 중요한 화면 (금일 현황)
+  var TTL_LONG  = 5 * 60 * 1000;  // 5분: 남이 실시간으로 안 바꾸는 화면
+  function clearAdmCache() { admCache = {}; }
+  function cachedApi(key, action, params, force, ttl, onOk, onFail) {
+    var c = admCache[key];
+    if (!force && c && Date.now() - c.t < ttl) { onOk(c.res); return; }
+    api(action, params, function (res) {
+      if (res && res.ok) admCache[key] = { t: Date.now(), res: res };
+      onOk(res);
+    }, onFail);
+  }
+
+  /* 버튼을 처리 중 상태로 바꿨다가 복구하는 헬퍼 */
+  function busy(btn) {
+    if (!btn) return function () {};
+    var orig = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spin"></span>';
+    return function () { btn.disabled = false; btn.innerHTML = orig; };
+  }
+
+  /* 목록에 로딩 스피너 표시 */
+  function listLoading(ul, text) {
+    ul.innerHTML = '<li class="loading-line"><span class="spin"></span>&nbsp; ' + (text || '불러오는 중') + '…</li>';
+  }
+
+  /* 백엔드 doPost로 요청을 보내는 공용 함수 */
+  function api(action, params, onOk, onFail) {
+    var body = Object.assign({ action: action }, params || {});
+    fetch(API_URL, { method: 'POST', body: JSON.stringify(body) })
+      .then(function (r) { return r.json(); })
+      .then(function (res) { onOk(res); })
+      .catch(function () { if (onFail) onFail(); });
+  }
+
+  function dispName(name, rank) { return name + (rank ? ' ' + rank : ''); }
+
+  var DOW_KO = ['일', '월', '화', '수', '목', '금', '토'];
+  function appendDow(el, dateStr) {
+    var day = new Date(dateStr + 'T12:00:00').getDay();
+    var s = document.createElement('span');
+    s.className = day === 0 ? 'dsun' : day === 6 ? 'dsat' : '';
+    s.textContent = ' (' + DOW_KO[day] + ')';
+    el.appendChild(s);
+  }
+
+  var TOKEN_KEY = 'tst_token';
+  var token = localStorage.getItem(TOKEN_KEY) || '';
+  var session = 0; // 로그아웃 시 증가 — 이전 세션의 늦은 응답을 무시하기 위함
+  var clientIp = '';
+  var myRole = '';
+  var empListLoaded = false;
+  var cachedLoc = null;   // { lat, lng, ts } — 미리 받아둔 위치
+  var todayVac = '';      // 오늘 본인 휴가 종류 (연차 출근 확인창용)
+  var todayLoaded = false; // 오늘 기록 상태 플래그 (기기 캐시로 즉시 세팅, 서버 응답으로 보정)
+
+  /* 근무일 키 (새벽 3시 경계 — 서버와 동일 규칙) */
+  function bizKey() {
+    var d = new Date();
+    if (d.getHours() < 3) d.setDate(d.getDate() - 1);
+    return d2s(d);
+  }
+  var todayData = [];     // 오늘 기록 (클라이언트 보관)
+
+  function show(id) {
+    document.querySelectorAll('.view').forEach(function (v) { v.classList.remove('on'); });
+    document.getElementById(id).classList.add('on');
+    // 비밀번호 변경 화면은 열릴 때마다 입력칸을 비움 (이전 세션 잔존값 방지)
+    if (id === 'v-changepw') {
+      document.getElementById('f-npw').value = '';
+      document.getElementById('f-npw2').value = '';
+      document.getElementById('pw-msg').textContent = '';
+    }
+  }
+
+  function gotoTab(t) {
+    if (t === 'menu') {
+      show('v-admin');
+      if (myRole === '관리자' && !empListLoaded) loadAdminToday();
+      renderMenu();
+    } else {
+      show('v-main');
+    }
+  }
+
+  /* ── 메뉴 구조: 그룹 → 세부탭 → 섹션 ── */
+  var MENU_GROUPS = [
+    { key: 'me',      label: '내 정보',   admin: false, tabs: [['myrec', '내 기록'], ['leave', '연차 계산']] },
+    { key: 'records', label: '기록 조회', admin: true,  tabs: [['today', '금일 현황'], ['records', '조회'], ['monthly', '집계']] },
+    { key: 'att',     label: '근태 관리', admin: true,  tabs: [['vac', '휴가'], ['missing', '퇴근 누락'], ['manual', '수동 기록']] },
+    { key: 'acct',    label: '계정 관리', admin: true,  tabs: [['emp', '권한 관리'], ['addemp', '직원 추가'], ['pw', 'P/W 초기화']] },
+    { key: 'set',     label: '설정',      admin: true,  hidden: true, tabs: [['notify', '알림']] }
+  ];
+  var ALL_SECS = ['today', 'records', 'monthly', 'vac', 'missing', 'manual', 'emp', 'addemp', 'pw', 'notify', 'myrec', 'leave'];
+  var curGroupKey = null;
+
+  function visibleGroups() {
+    var isAdmin = myRole === '관리자';
+    return MENU_GROUPS.filter(function (g) { return isAdmin || !g.admin; });
+  }
+
+  function renderMenu() {
+    var groups = visibleGroups();
+    var wrap = document.getElementById('menu-groups');
+    wrap.innerHTML = '';
+    var brDone = false;
+    groups.forEach(function (g) {
+      if (g.hidden) return; // 설정은 우상단 톱니로만 진입
+      // 관리자 화면: 공통(내 정보) 다음, 관리 메뉴 앞에서 줄 나눔
+      if (g.admin && myRole === '관리자' && !brDone) {
+        var br = document.createElement('span');
+        br.className = 'segbreak';
+        wrap.appendChild(br);
+        brDone = true;
+      }
+      var b = document.createElement('button');
+      b.textContent = g.label;
+      b.id = 'grp-' + g.key;
+      if (!g.admin && myRole === '관리자') b.className = 'personal';
+      b.onclick = function () { openGroup(g.key); };
+      wrap.appendChild(b);
+    });
+    document.getElementById('btn-gear').classList.toggle('show', myRole === '관리자');
+    // 관리자는 업무 첫 그룹(기록 조회)을, 직원은 내 정보를 기본으로
+    var def = myRole === '관리자' ? 'records' : groups[0].key;
+    var cur = groups.some(function (g) { return g.key === curGroupKey && !g.hidden; }) ? curGroupKey : def;
+    openGroup(cur);
+  }
+
+  function openGroup(key) {
+    curGroupKey = key;
+    var groups = visibleGroups();
+    var g = null;
+    groups.forEach(function (x) { if (x.key === key) g = x; });
+    if (!g) return;
+    var wrap = document.getElementById('menu-groups');
+    for (var i = 0; i < wrap.children.length; i++) {
+      if (wrap.children[i].tagName !== 'BUTTON') continue;
+      wrap.children[i].classList.toggle('on', wrap.children[i].id === 'grp-' + key);
+    }
+    var sub = document.getElementById('menu-subtabs');
+    sub.innerHTML = '';
+    if (g.tabs.length > 1) {
+      sub.style.display = 'flex';
+      g.tabs.forEach(function (t) {
+        var b = document.createElement('button');
+        b.textContent = t[1];
+        b.dataset.sec = t[0];
+        b.onclick = function () { openSec(t[0]); };
+        sub.appendChild(b);
+      });
+    } else {
+      sub.style.display = 'none';
+    }
+    openSec(g.tabs[0][0]);
+  }
+
+  function openSec(secId) {
+    ALL_SECS.forEach(function (k) {
+      var el = document.getElementById('sec-' + k);
+      if (el) el.classList.toggle('on', k === secId);
+    });
+    var sub = document.getElementById('menu-subtabs');
+    for (var i = 0; i < sub.children.length; i++) {
+      sub.children[i].classList.toggle('on', sub.children[i].dataset.sec === secId);
+    }
+    if (secId === 'today') loadAdminToday();
+    if (secId === 'missing') loadMissing();
+    if (secId === 'emp') loadEmpList();
+    if (secId === 'vac') loadVacs();
+    if (secId === 'myrec') loadMyMonth();
+    if (secId === 'notify') {
+      document.getElementById('chk-morning').checked = localStorage.getItem('tst_morning') === '1';
+    }
+    if (secId === 'records' && !document.getElementById('q-from').value) setQRange('7d');
+    if (secId === 'monthly' && !document.getElementById('m-month').value) {
+      var n = new Date();
+      document.getElementById('m-month').value =
+        n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0');
+    }
+  }
+
+  /* ── 내 기록 (이번 달) ── */
+  function loadMyMonth(force) {
+    var ul = document.getElementById('myrec-list');
+    listLoading(ul);
+    cachedApi('myrec', 'myMonth', { token: token }, force, TTL_LONG, function (res) {
+      if (!res.ok) { ul.innerHTML = '<li class="empty">' + res.msg + '</li>'; return; }
+      document.getElementById('myrec-title').textContent = res.ym + ' 내 기록';
+      ul.innerHTML = '';
+      if (res.rows.length === 0) { ul.innerHTML = '<li class="empty">이번 달 기록이 없습니다.</li>'; return; }
+      res.rows.forEach(function (r) {
+        var li = document.createElement('li');
+        li.className = 'rowline';
+        li.innerHTML = '<span class="meta"></span><span class="t"></span>';
+        li.children[0].textContent = r.date;
+        appendDow(li.children[0], r.date);
+        if (r.status === '정상') {
+          li.children[1].textContent = r.inT + ' ~ ' + r.outT;
+        } else if (r.status === '근무중') {
+          li.children[1].textContent = r.inT + ' ~ 근무 중';
+        } else {
+          li.children[1].innerHTML = '<span class="warn"></span>';
+          li.children[1].children[0].textContent = r.status + (r.inT ? ' (출근 ' + r.inT + ')' : r.outT ? ' (퇴근 ' + r.outT + ')' : '');
+        }
+        ul.appendChild(li);
+      });
+    }, function () { ul.innerHTML = '<li class="empty">불러오기에 실패했습니다.</li>'; });
+  }
+
+  /* ── 시계 ── */
+  function tick() {
+    var n = new Date();
+    var p = function (x) { return String(x).padStart(2, '0'); };
+    document.getElementById('clock').textContent = p(n.getHours()) + ':' + p(n.getMinutes()) + ':' + p(n.getSeconds());
+    document.getElementById('date').textContent =
+      n.getFullYear() + '년 ' + (n.getMonth() + 1) + '월 ' + n.getDate() + '일 (' +
+      ['일','월','화','수','목','금','토'][n.getDay()] + ')';
+  }
+  setInterval(tick, 1000); tick();
+
+  /* ── 시작 ── */
+  function boot() {
+    var qs = new URLSearchParams(location.search);
+    var inv = qs.get('inv');
+    if (inv) {
+      if (!token) { inviteFlow(inv); return; }
+      history.replaceState(null, '', location.pathname); // 이미 등록된 기기 — 초대 무시하고 평소대로
+    }
+    var kcode = qs.get('code');
+    if (kcode) {
+      history.replaceState(null, '', location.pathname); // 주소에서 인증코드 제거
+      if (!token) { kakaoReturn(kcode); return; }
+    }
+    if (!token) { show('v-login'); return; }
+    // 저장된 이름 + 지난 실행의 오늘 기록 캐시로 즉시 사용 가능 상태로 시작.
+    // 버튼을 서버 응답까지 잠그지 않음 — 중복 출퇴근은 서버가 거부하고 화면을 동기화함.
+    var savedName = localStorage.getItem('tst_name');
+    if (savedName) {
+      applyRole(localStorage.getItem('tst_role'));
+      var cachedToday = null;
+      try { cachedToday = JSON.parse(localStorage.getItem('tst_today') || 'null'); } catch (e) {}
+      todayLoaded = true;
+      enterMain(savedName, (cachedToday && cachedToday.d === bizKey()) ? (cachedToday.rows || []) : []);
+    }
+    var s = session;
+    api('check', { token: token }, function (res) {
+      if (s !== session) return; // 로그아웃 후 도착한 응답 무시
+      if (res.ok) {
+        localStorage.setItem('tst_name', dispName(res.name, res.rank));
+        localStorage.setItem('tst_role', res.role || '');
+        localStorage.setItem('tst_email', res.email || '');
+        localStorage.setItem('tst_morning', res.morning ? '1' : '0');
+        todayVac = res.todayVac || '';
+        todayLoaded = true;
+        applyRole(res.role);
+        enterMain(dispName(res.name, res.rank), res.today);
+        if (res.mustChange) show('v-changepw');
+      } else {
+        logout();
+      }
+    }, function () {
+      if (s !== session) return;
+      todayLoaded = true; // 연결 실패 시엔 잠금 해제 (기록 시도 자체는 서버가 재검증함)
+      updatePunchButtons();
+      if (!savedName) show('v-login');
+    });
+  }
+
+  function applyRole(role) {
+    myRole = role || '';
+  }
+
+  /* ── 로그인 ── */
+  function login() {
+    var id = document.getElementById('f-id').value.trim();
+    var pw = document.getElementById('f-pw').value;
+    var msg = document.getElementById('login-msg');
+    if (!id || !pw) { msg.textContent = '아이디와 비밀번호를 입력해 주세요.'; return; }
+    msg.textContent = '';
+    var done = busy(document.getElementById('btn-login'));
+    api('login', { id: id, pw: pw }, function (res) {
+      done();
+      if (!res.ok) { msg.textContent = res.msg; return; }
+      token = res.token;
+      localStorage.setItem(TOKEN_KEY, token);
+      localStorage.setItem('tst_name', dispName(res.name, res.rank));
+      localStorage.setItem('tst_role', res.role || '');
+      applyRole(res.role);
+      if (res.mustChange) { document.getElementById('u-name').textContent = dispName(res.name, res.rank); show('v-changepw'); }
+      else { todayLoaded = false; enterMain(dispName(res.name, res.rank), []); refreshToday(); }
+    }, function () { done(); msg.textContent = '연결에 실패했습니다. 잠시 후 다시 시도해 주세요.'; });
+  }
+
+  /* ── 비밀번호 변경 ── */
+  function changePw() {
+    var a = document.getElementById('f-npw').value;
+    var b = document.getElementById('f-npw2').value;
+    var msg = document.getElementById('pw-msg');
+    if (a !== b) { msg.textContent = '두 입력이 서로 다릅니다.'; return; }
+    msg.textContent = '';
+    var done = busy(document.getElementById('btn-chpw'));
+    api('changepw', { token: token, newPw: a }, function (res) {
+      done();
+      if (!res.ok) { msg.textContent = res.msg; return; }
+      refreshToday();
+      show('v-main');
+    }, function () { done(); msg.textContent = '연결에 실패했습니다.'; });
+  }
+
+  /* ── 메인 ── */
+  function enterMain(name, todayList) {
+    document.getElementById('u-name').textContent = name;
+    if (todayList === null) {
+      document.getElementById('today-list').innerHTML = '<li class="empty">불러오는 중…</li>';
+      updatePunchButtons();
+    } else {
+      // 서버 응답으로 교체하되, 확정 대기 중인 낙관적 항목은 보존 (기록 중 백그라운드 갱신 경합 방지)
+      var pend = todayData.filter(function (r) { return r.pending; });
+      todayData = (todayList || []).concat(pend);
+      renderToday(todayData);
+    }
+    // 사용자가 이미 다른 화면(메뉴 등)에 가 있으면 데이터만 갱신하고 화면은 건드리지 않음
+    var cur = document.querySelector('.view.on');
+    if (!cur || cur.id === 'v-loading' || cur.id === 'v-login' || cur.id === 'v-main'
+        || cur.id === 'v-klink' || cur.id === 'v-invite') {
+      show('v-main');
+    }
+    prefetchLocation();
+  }
+
+  /* 메인 화면에 들어오면 위치를 미리 받아둠 → 버튼 누를 때 대기 없음 */
+  function prefetchLocation() {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      function (pos) {
+        cachedLoc = { lat: pos.coords.latitude, lng: pos.coords.longitude, ts: Date.now() };
+      },
+      function () {},
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 120000 }
+    );
+  }
+
+  function refreshToday() {
+    var s = session;
+    api('check', { token: token }, function (res) {
+      if (s !== session) return;
+      if (res.ok) {
+        localStorage.setItem('tst_email', res.email || '');
+        localStorage.setItem('tst_morning', res.morning ? '1' : '0');
+        todayVac = res.todayVac || '';
+        todayLoaded = true;
+        applyRole(res.role);
+        enterMain(dispName(res.name, res.rank), res.today || []);
+      }
+    }, function () {
+      if (s !== session) return;
+      todayLoaded = true;
+      updatePunchButtons();
+    });
+  }
+
+  var KAKAO_KEY = 'e288962f8abd937ac704064958ea1f0c';
+  var KAKAO_REDIRECT = 'https://end-or.github.io/ATTD/test.html'; // 카카오 콘솔 등록값과 동일해야 함
+
+  var LEAVE_TIME = '17:30'; // 정규 퇴근 시각 (변경 시 여기만 수정)
+  var DAY_START = '03:00';  // 하루 경계(백엔드와 동일) — 이 시각 전 퇴근은 심야 퇴근으로 취급
+
+  function punch(type) {
+    // 종일 휴가로 등록된 날의 출근은 한 번 확인 (실수 방지 — 실제 출근은 통과)
+    if (type === '출근' && (todayVac === '연차' || todayVac === '공가' || todayVac === '기타')) {
+      if (!confirm('오늘은 ' + todayVac + '(으)로 등록되어 있습니다. 출근 처리할까요?')) return;
+    }
+    // 퇴근인데 정규 시각 전이면 사유 확인 모달
+    if (type === '퇴근') {
+      var n = new Date();
+      var cur = String(n.getHours()).padStart(2, '0') + ':' + String(n.getMinutes()).padStart(2, '0');
+      if (cur >= DAY_START && cur < LEAVE_TIME) {
+        document.getElementById('lv-std').textContent = LEAVE_TIME;
+        document.getElementById('lv-detail').value = '';
+        document.getElementById('ov-leave').classList.add('on');
+        return;
+      }
+      if (!confirm('정말 퇴근 처리할까요?')) return;
+    }
+    doPunch(type, '');
+  }
+
+  function closeLeaveModal() { document.getElementById('ov-leave').classList.remove('on'); }
+
+  function confirmLeave() {
+    var r = document.querySelector('input[name="lv-r"]:checked').value;
+    var d = document.getElementById('lv-detail').value.trim();
+    closeLeaveModal();
+    doPunch('퇴근', '조기퇴근(' + r + (d ? ': ' + d : '') + ')');
+  }
+
+  function doPunch(type, note) {
+    var s = session;
+    var st = document.getElementById(type === '출근' ? 'st-in' : 'st-out');
+
+    // ① 누르는 즉시 화면에 반영 (낙관적 UI) — 실제 확정 시각은 서버 응답으로 교체됨
+    var n = new Date();
+    var p = function (x) { return String(x).padStart(2, '0'); };
+    var entry = { time: p(n.getHours()) + ':' + p(n.getMinutes()), type: type, pending: true };
+    todayData.push(entry);
+    renderToday(todayData);
+    st.className = 'pstat ok';
+    st.textContent = '✓ 처리 중…';
+
+    // ② 서버 전송 (버튼은 잠깐만 잠갔다 바로 해제 — 연타 오작동 방지용 0.8초)
+    setButtons(false);
+    setTimeout(function () { setButtons(true); }, 800);
+
+    getLocation(function (lat, lng) {
+      api('record', { token: token, type: type, lat: lat, lng: lng, ip: clientIp, note: note }, function (res) {
+        if (s !== session) return;
+        if (!res.ok) {
+          // 실패 → 방금 항목 제거 + 알림
+          removeEntry(entry);
+          st.className = 'pstat err'; st.textContent = '기록 안 됨 — ' + res.msg;
+          if (navigator.vibrate) navigator.vibrate(200);
+          if (res.msg && res.msg.indexOf('만료') >= 0) { logout(); }
+          if (res.msg && res.msg.indexOf('변경') >= 0) { show('v-changepw'); }
+          if (res.msg && res.msg.indexOf('이미') >= 0) { refreshToday(); } // 서버 기준으로 버튼 상태 동기화
+          return;
+        }
+        // 성공 → 서버 확정 시각으로 교체
+        entry.time = res.time;
+        entry.pending = false;
+        renderToday(todayData);
+        st.className = 'pstat';
+        st.textContent = '';
+      }, function () {
+        if (s !== session) return;
+        removeEntry(entry);
+        st.className = 'pstat err'; st.textContent = '연결 실패 — 다시 눌러주세요';
+        if (navigator.vibrate) navigator.vibrate(200);
+      });
+    });
+  }
+
+  function removeEntry(entry) {
+    var i = todayData.indexOf(entry);
+    if (i >= 0) todayData.splice(i, 1);
+    renderToday(todayData);
+  }
+
+  function setButtons(on) {
+    document.getElementById('b-in').disabled = !on;
+    document.getElementById('b-out').disabled = !on;
+    if (on) updatePunchButtons(); // 잠금 해제 시에도 출근 완료 상태는 유지
+  }
+
+  /* 올해 연차 계산 — 입력한 부여 개수 기준, 사용량은 서버에서 즉석 집계 (저장 안 함) */
+  function calcLeave() {
+    var el = document.getElementById('leave-info');
+    var total = parseFloat(document.getElementById('lv-total').value);
+    if (isNaN(total) || total < 0) { el.textContent = '부여받은 연차 개수를 숫자로 입력해 주세요.'; return; }
+    var done = busy(document.getElementById('btn-lvcalc'));
+    api('myVac', { token: token }, function (res) {
+      done();
+      if (!res.ok) { el.textContent = res.msg; return; }
+      var remain = Math.round((total - res.used) * 10) / 10;
+      el.textContent = res.year + '년 사용 ' + res.used + '일 → 잔여 ' + remain + '일 (부여 ' + total + '일 기준)';
+    }, function () { done(); el.textContent = '조회에 실패했습니다. 다시 시도해 주세요.'; });
+  }
+
+  /* 오늘 출근/퇴근이 이미 있으면 해당 버튼 잠금 */
+  function updatePunchButtons() {
+    if (!todayLoaded) { // 오늘 기록 확인 전 — 임시 잠금
+      document.getElementById('b-in').disabled = true;
+      document.getElementById('b-out').disabled = true;
+      return;
+    }
+    var hasIn = todayData.some(function (r) { return r.type === '출근'; });
+    var hasOut = todayData.some(function (r) { return r.type === '퇴근'; });
+    var bi = document.getElementById('b-in');
+    bi.disabled = hasIn;
+    bi.textContent = hasIn ? '출근 완료' : '출근';
+    var bo = document.getElementById('b-out');
+    bo.disabled = hasOut;
+    bo.textContent = hasOut ? '퇴근 완료' : '퇴근';
+  }
+
+  function getLocation(cb) {
+    // 미리 받아둔 위치가 5분 이내면 대기 없이 바로 사용
+    if (cachedLoc && Date.now() - cachedLoc.ts < 5 * 60 * 1000) {
+      cb(cachedLoc.lat, cachedLoc.lng);
+      prefetchLocation(); // 다음을 위해 갱신
+      return;
+    }
+    var done = false;
+    var finish = function (lat, lng) { if (!done) { done = true; cb(lat, lng); } };
+    if (!navigator.geolocation) { finish(null, null); return; }
+    setTimeout(function () { finish(null, null); }, 1500);
+    navigator.geolocation.getCurrentPosition(
+      function (pos) {
+        cachedLoc = { lat: pos.coords.latitude, lng: pos.coords.longitude, ts: Date.now() };
+        finish(pos.coords.latitude, pos.coords.longitude);
+      },
+      function () { finish(null, null); },
+      { enableHighAccuracy: true, timeout: 1400, maximumAge: 120000 }
+    );
+  }
+
+  function saveTodayCache() {
+    try {
+      localStorage.setItem('tst_today', JSON.stringify({
+        d: bizKey(),
+        rows: todayData.filter(function (r) { return !r.pending; })
+          .map(function (r) { return { type: r.type, time: r.time }; })
+      }));
+    } catch (e) {}
+  }
+
+  function renderToday(list) {
+    saveTodayCache();
+    var ul = document.getElementById('today-list');
+    ul.innerHTML = '';
+    if (!list || list.length === 0) {
+      ul.innerHTML = '<li class="empty">아직 기록이 없습니다.</li>';
+      updatePunchButtons();
+      return;
+    }
+    list.forEach(function (r) {
+      var li = document.createElement('li');
+      li.className = 'rowline' + (r.pending ? ' pending' : '');
+      li.innerHTML = '<span class="tag' + (r.type === '출근' ? ' i' : '') + '"></span><span class="t"></span>';
+      li.children[0].textContent = r.type;
+      li.children[1].textContent = r.time + (r.pending ? ' …' : '');
+      ul.appendChild(li);
+    });
+    updatePunchButtons();
+  }
+
+  /* ── 관리자: 오늘 현황 + 직원 목록 ── */
+  function loadAdminToday(force) {
+    var ul = document.getElementById('adm-today-list');
+    listLoading(ul);
+    cachedApi('today', 'admToday', { token: token }, force, TTL_SHORT, function (res) {
+        if (!res.ok) { ul.innerHTML = '<li class="empty">' + res.msg + '</li>'; return; }
+        fillEmpSelects(res.employees);
+        ul.innerHTML = '';
+        if (res.rows.length === 0) { ul.innerHTML = '<li class="empty">재직 중인 직원이 없습니다.</li>'; return; }
+        res.rows.forEach(function (r) {
+          var li = document.createElement('li');
+          li.className = 'rowline';
+          li.innerHTML = '<span></span><span class="t"></span>';
+          li.children[0].textContent = r.name;
+          var right = li.children[1];
+          if (r.vac) {
+            var b = document.createElement('span');
+            b.className = 'badge admin';
+            b.textContent = r.vac;
+            if (r.inT) {
+              right.textContent = r.inT + ' ~ ' + (r.outT || '근무 중') + ' ';
+            } else if (r.vac === '오후반차') {
+              // 오후반차는 오전 출근 대상 — 미출근 경고 유지
+              right.innerHTML = '<span class="warn">미출근</span>&nbsp;';
+            }
+            right.appendChild(b);
+          } else if (!r.inT) {
+            right.innerHTML = '<span class="warn">미출근</span>';
+          } else {
+            right.textContent = r.inT + ' ~ ' + (r.outT || '근무 중');
+          }
+          ul.appendChild(li);
+        });
+      }, function () { ul.innerHTML = '<li class="empty">불러오기에 실패했습니다.</li>'; });
+  }
+
+  function fillEmpSelects(emps) {
+    empListLoaded = true;
+    empData = emps; // 피커들이 이 데이터로 검색함
+  }
+
+  /* ── 직원 검색 피커 (이름/초성/아이디 매칭) ── */
+  var empData = [];
+  var CHO = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+  function chosung(s) {
+    var out = '';
+    for (var i = 0; i < s.length; i++) {
+      var code = s.charCodeAt(i) - 44032;
+      out += (code >= 0 && code < 11172) ? CHO[Math.floor(code / 588)] : s[i];
+    }
+    return out;
+  }
+  function empMatch(e, q) {
+    q = q.trim().toLowerCase();
+    if (!q) return true;
+    return e.name.indexOf(q) >= 0
+      || chosung(e.name).indexOf(q) >= 0
+      || e.id.toLowerCase().indexOf(q) >= 0
+      || (e.rank || '').indexOf(q) >= 0;
+  }
+  function pickVal(id) { return document.getElementById(id).dataset.empId || ''; }
+  function initPicker(id) {
+    var inp = document.getElementById(id);
+    var list = document.getElementById(id + '-list');
+    function render() {
+      var rows = empData.filter(function (e) { return empMatch(e, inp.value); }).slice(0, 30);
+      list.innerHTML = '';
+      if (empData.length === 0) {
+        var d0 = document.createElement('div');
+        d0.className = 'none';
+        d0.textContent = '직원 목록 로딩 전입니다 — [오늘 현황]을 한 번 열어주세요';
+        list.appendChild(d0);
+      } else if (rows.length === 0) {
+        var d1 = document.createElement('div');
+        d1.className = 'none';
+        d1.textContent = '일치하는 직원이 없습니다';
+        list.appendChild(d1);
+      }
+      rows.forEach(function (e) {
+        var d = document.createElement('div');
+        d.textContent = dispName(e.name, e.rank) + ' (' + e.id + ')';
+        d.onmousedown = function (ev) {
+          ev.preventDefault();
+          inp.value = dispName(e.name, e.rank);
+          inp.dataset.empId = e.id;
+          list.classList.remove('on');
+        };
+        list.appendChild(d);
+      });
+      list.classList.add('on');
+    }
+    inp.addEventListener('focus', render);
+    inp.addEventListener('input', function () { delete inp.dataset.empId; render(); });
+    inp.addEventListener('blur', function () { setTimeout(function () { list.classList.remove('on'); }, 150); });
+  }
+
+  /* ── 관리자: 기록 조회 ── */
+  function queryRecords() {
+    var ul = document.getElementById('adm-rec-list');
+    listLoading(ul, '조회 중');
+    api('admRecords', {
+        token: token,
+        empId: pickVal('q-emp'),
+        from: document.getElementById('q-from').value,
+        to: document.getElementById('q-to').value
+      }, function (res) {
+        if (!res.ok) { ul.innerHTML = '<li class="empty">' + res.msg + '</li>'; return; }
+        ul.innerHTML = '';
+        if (res.rows.length === 0) { ul.innerHTML = '<li class="empty">해당 기간의 기록이 없습니다.</li>'; return; }
+        var curDate = '';
+        res.rows.forEach(function (r) {
+          if (r.date !== curDate) {
+            curDate = r.date;
+            var h = document.createElement('li');
+            h.className = 'dayhead';
+            h.textContent = r.date;
+            appendDow(h, r.date);
+            ul.appendChild(h);
+          }
+          var li = document.createElement('li');
+          li.className = 'rowline';
+          li.innerHTML = '<span></span><span class="t"></span>';
+          li.children[0].textContent = r.name;
+          if (r.note) {
+            var nm = document.createElement('span');
+            nm.className = 'meta';
+            nm.textContent = ' · ' + r.note;
+            li.children[0].appendChild(nm);
+          }
+          var right = li.children[1];
+          if (r.status) {
+            right.innerHTML = '<span class="warn"></span>';
+            right.children[0].textContent = r.status
+              + (r.inT ? ' (출근 ' + r.inT + ')' : r.outT ? ' (퇴근 ' + r.outT + ')' : '');
+          } else {
+            right.textContent = r.inT + ' ~ ' + r.outT;
+          }
+          ul.appendChild(li);
+        });
+      }, function () { ul.innerHTML = '<li class="empty">조회에 실패했습니다.</li>'; });
+  }
+
+  /* ── 설정: 데이터 정리 ── */
+  function showAutoMsg(res) {
+    var msg = document.getElementById('adm-auto-msg');
+    msg.className = 'adm-msg ' + (res.ok ? 'ok' : 'err');
+    msg.textContent = res.msg;
+  }
+
+  function archiveNow() {
+    if (!confirm('지난해까지의 기록을 연도별 탭으로 옮깁니다.\n(데이터 삭제 아님 · 올해 기록은 그대로)\n\n진행할까요?')) return;
+    var done = busy(document.getElementById('btn-arcnow'));
+    api('admArchiveNow', { token: token }, function (res) {
+      done();
+      showAutoMsg(res);
+      if (res.ok) clearAdmCache(); // 기록 데이터가 이동했으니 조회 캐시 갱신
+    }, function () { done(); showAutoMsg({ ok: false, msg: '실행에 실패했습니다.' }); });
+  }
+
+  function toggleMorning() {
+    var chk = document.getElementById('chk-morning');
+    var msg = document.getElementById('adm-notify-msg');
+    var on = chk.checked;
+    msg.className = 'adm-msg'; msg.textContent = '';
+    api('admSetMorning', { token: token, on: on }, function (res) {
+      msg.className = 'adm-msg ' + (res.ok ? 'ok' : 'err');
+      msg.textContent = res.msg;
+      if (res.ok) localStorage.setItem('tst_morning', on ? '1' : '0');
+      else chk.checked = !on;
+    }, function () {
+      msg.className = 'adm-msg err'; msg.textContent = '저장에 실패했습니다.';
+      chk.checked = !on;
+    });
+  }
+
+  function d2s(d) {
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  function setQRange(p) {
+    var n = new Date(), f, t;
+    if (p === '7d') { t = new Date(n); f = new Date(n); f.setDate(f.getDate() - 6); }
+    else if (p === 'tm') { f = new Date(n.getFullYear(), n.getMonth(), 1); t = new Date(n); }
+    else { f = new Date(n.getFullYear(), n.getMonth() - 1, 1); t = new Date(n.getFullYear(), n.getMonth(), 0); }
+    document.getElementById('q-from').value = d2s(f);
+    document.getElementById('q-to').value = d2s(t);
+    queryRecords();
+  }
+
+  /* ── 관리자: 퇴근 누락 ── */
+  function loadMissing(force) {
+    var ul = document.getElementById('adm-miss-list');
+    listLoading(ul);
+    cachedApi('missing', 'admMissing', { token: token }, force, TTL_LONG, function (res) {
+        if (!res.ok) { ul.innerHTML = '<li class="empty">' + res.msg + '</li>'; return; }
+        ul.innerHTML = '';
+        if (res.rows.length === 0) ul.innerHTML = '<li class="empty">누락 건이 없습니다.</li>';
+        res.rows.forEach(function (r) {
+          var li = document.createElement('li');
+          li.className = 'rowline';
+          li.innerHTML = '<span></span><span class="t"></span>';
+          li.children[0].textContent = r.date + ' · ' + r.name;
+          var right = li.children[1];
+          right.textContent = '출근 ' + r.inT + ' → 없음';
+          var btn = document.createElement('button');
+          btn.className = 'fixbtn';
+          btn.textContent = '정정';
+          btn.onclick = function () { fixMissing(r); };
+          right.appendChild(btn);
+          ul.appendChild(li);
+        });
+        renderPending(res.pending || []);
+      }, function () { ul.innerHTML = '<li class="empty">불러오기에 실패했습니다.</li>'; });
+  }
+
+  /* 퇴근 누락 정정: 시각 입력받아 서버에 정정 기록 추가 */
+  /* 반차 사유로 일찍 퇴근했지만 휴가가 등록되지 않은 건 */
+  function renderPending(list) {
+    var ul = document.getElementById('adm-pend-list');
+    ul.innerHTML = '';
+    if (!list || list.length === 0) {
+      ul.innerHTML = '<li class="empty">대기 중인 건이 없습니다.</li>';
+      return;
+    }
+    list.forEach(function (p) {
+      var li = document.createElement('li');
+      li.className = 'rowline';
+      li.innerHTML = '<span></span><span class="t"></span>';
+      li.children[0].textContent = p.date + ' · ' + p.name;
+      var meta = document.createElement('span');
+      meta.className = 'meta';
+      meta.textContent = ' ' + p.note;
+      li.children[0].appendChild(meta);
+      var btn = document.createElement('button');
+      btn.className = 'fixbtn';
+      btn.textContent = '휴가 등록';
+      btn.onclick = function () {
+        var kind = confirm(p.name + ' · ' + p.date + '\n오후반차로 등록할까요?\n\n[확인] 오후반차   [취소] 등록 안 함')
+          ? '오후반차' : null;
+        if (!kind) return;
+        var done = busy(btn);
+        api('admVacAdd', { token: token, empId: p.id, from: p.date, to: p.date, kind: kind, memo: '조기퇴근 사유 등록' }, function (res) {
+          done();
+          if (res.ok) { clearAdmCache(); loadMissing(true); }
+          else alert(res.msg);
+        }, function () { done(); alert('등록에 실패했습니다.'); });
+      };
+      li.children[1].appendChild(btn);
+      ul.appendChild(li);
+    });
+  }
+
+  function fixMissing(r) {
+    var t = prompt(r.name + ' · ' + r.date + '\n퇴근 시각을 입력하세요 (예: 18:30)', '18:00');
+    if (t === null) return;
+    api('admFixMissing', { token: token, empId: r.id, date: r.date, time: t.trim() }, function (res) {
+      alert(res.msg);
+      if (res.ok) { clearAdmCache(); loadMissing(true); }
+    }, function () { alert('처리에 실패했습니다. 다시 시도해 주세요.'); });
+  }
+
+  /* ── 관리자: 집계 (월간/주간) ── */
+  var monthDetails = [];
+  var sumMode = 'month';
+
+  function setSumMode(m) {
+    sumMode = m;
+    document.getElementById('sm-month').classList.toggle('on', m === 'month');
+    document.getElementById('sm-week').classList.toggle('on', m === 'week');
+    document.getElementById('m-month').style.display = m === 'month' ? '' : 'none';
+    document.getElementById('m-week').style.display = m === 'week' ? '' : 'none';
+    document.getElementById('m-week-hint').style.display = m === 'week' ? 'block' : 'none';
+    document.getElementById('mail-wrap').style.display = m === 'month' ? '' : 'none'; // 메일은 월간 전용
+    if (m === 'week' && !document.getElementById('m-week').value) {
+      document.getElementById('m-week').value = d2s(new Date());
+    }
+  }
+
+  function loadMonthly() {
+    var tul = document.getElementById('adm-month-totals');
+    var dul = document.getElementById('adm-month-details');
+    var hint = document.getElementById('adm-month-hint');
+    var params = { token: token, ym: '', from: '', to: '' };
+    if (sumMode === 'week') {
+      var base = document.getElementById('m-week').value;
+      if (!base) { tul.innerHTML = '<li class="empty">기준 날짜를 선택해 주세요.</li>'; return; }
+      var b = new Date(base + 'T12:00:00');
+      var f = new Date(b); f.setDate(f.getDate() - b.getDay());
+      var t = new Date(f); t.setDate(t.getDate() + 6);
+      params.from = d2s(f); params.to = d2s(t);
+    } else {
+      var ym = document.getElementById('m-month').value;
+      if (!ym) { tul.innerHTML = '<li class="empty">월을 선택해 주세요.</li>'; return; }
+      params.ym = ym;
+    }
+    listLoading(tul, '집계 중'); dul.innerHTML = ''; hint.style.display = 'none';
+    api('admMonthly', params, function (res) {
+      if (!res.ok) { tul.innerHTML = '<li class="empty">' + res.msg + '</li>'; return; }
+      monthDetails = res.details;
+      tul.innerHTML = '';
+      if (res.totals.length === 0) { tul.innerHTML = '<li class="empty">해당 월의 기록이 없습니다.</li>'; return; }
+      hint.style.display = 'block';
+      res.totals.forEach(function (t) {
+        var li = document.createElement('li');
+        li.className = 'rowline';
+        li.style.cursor = 'pointer';
+        li.innerHTML = '<span></span><span class="t"></span>';
+        li.children[0].textContent = t.name;
+        li.children[1].textContent = t.days + '일 · ' + t.hours + 'h'
+          + (t.vac ? ' · 휴가 ' + t.vac : '') + (t.miss ? ' · 누락 ' + t.miss : '');
+        if (t.miss) li.children[1].innerHTML += ' <span class="warn">!</span>';
+        li.onclick = function () { renderMonthDetails(t.id, t.name); };
+        tul.appendChild(li);
+      });
+    }, function () { tul.innerHTML = '<li class="empty">집계에 실패했습니다.</li>'; });
+  }
+
+  function renderMonthDetails(id, name) {
+    var dul = document.getElementById('adm-month-details');
+    dul.innerHTML = '';
+    var rows = monthDetails.filter(function (d) { return d.id === id; });
+    if (rows.length === 0) { dul.innerHTML = '<li class="empty">기록 없음</li>'; return; }
+    var head = document.createElement('li');
+    head.className = 'rowline';
+    head.innerHTML = '<span class="tag"></span><span class="meta">일별 상세</span>';
+    head.children[0].textContent = name;
+    dul.appendChild(head);
+    rows.forEach(function (d) {
+      var li = document.createElement('li');
+      li.className = 'rowline';
+      li.innerHTML = '<span class="meta"></span><span class="t"></span>';
+      li.children[0].textContent = d.date;
+      appendDow(li.children[0], d.date);
+      if (d.status === '정상') {
+        li.children[1].textContent = d.inT + ' ~ ' + d.outT + ' · ' + d.hours + 'h';
+        if (d.vac) {
+          var vb = document.createElement('span');
+          vb.className = 'badge admin';
+          vb.textContent = d.vac;
+          li.children[1].appendChild(document.createTextNode(' '));
+          li.children[1].appendChild(vb);
+        }
+      } else if (d.status === '근무중') {
+        li.children[1].textContent = d.inT + ' ~ 근무 중';
+      } else if (['연차', '오전반차', '오후반차', '반차', '공가', '기타'].indexOf(d.status) >= 0) {
+        li.children[1].innerHTML = '<span class="badge admin"></span>';
+        li.children[1].children[0].textContent = d.status;
+      } else {
+        li.children[1].innerHTML = '<span class="warn"></span>';
+        li.children[1].children[0].textContent = d.status + (d.inT ? ' (출근 ' + d.inT + ')' : '');
+      }
+      dul.appendChild(li);
+    });
+  }
+
+  function mailMonthly(toEmpId) {
+    var msg = document.getElementById('adm-mail-msg');
+    var ym = document.getElementById('m-month').value;
+    if (!ym) { msg.className = 'adm-msg err'; msg.textContent = '월을 선택해 주세요.'; return; }
+    msg.className = 'adm-msg'; msg.textContent = '';
+    var done = busy(document.getElementById(toEmpId ? 'btn-mailother' : 'btn-mailme'));
+    api('admMailMonthly', { token: token, ym: ym, toEmpId: toEmpId || '' }, function (res) {
+      done();
+      msg.className = 'adm-msg ' + (res.ok ? 'ok' : 'err');
+      msg.textContent = res.msg;
+    }, function () { done(); msg.className = 'adm-msg err'; msg.textContent = '발송에 실패했습니다.'; });
+  }
+
+  function mailMonthlyOther() {
+    var empId = pickVal('m-mailto-emp');
+    if (!empId) {
+      var msg = document.getElementById('adm-mail-msg');
+      msg.className = 'adm-msg err';
+      msg.textContent = '직원을 검색해서 선택해 주세요.';
+      return;
+    }
+    mailMonthly(empId);
+  }
+
+  /* ── 관리자: 직원 관리 ── */
+  var empRows = [];
+
+  function loadEmpList(force) {
+    var ul = document.getElementById('adm-emp-list');
+    listLoading(ul);
+    cachedApi('emp', 'admEmpList', { token: token }, force, TTL_LONG, function (res) {
+      if (!res.ok) { ul.innerHTML = '<li class="empty">' + res.msg + '</li>'; return; }
+      empRows = res.rows || [];
+      renderEmpList();
+    }, function () { ul.innerHTML = '<li class="empty">불러오기에 실패했습니다.</li>'; });
+  }
+
+  /* 입력한 검색어(이름·초성·아이디·직급)로 즉시 필터 */
+  function renderEmpList() {
+    var ul = document.getElementById('adm-emp-list');
+    var q = document.getElementById('emp-q').value;
+    var rows = empRows.filter(function (e) { return empMatch(e, q); });
+    ul.innerHTML = '';
+    if (rows.length === 0) {
+      ul.innerHTML = '<li class="empty">' + (empRows.length ? '일치하는 직원이 없습니다.' : '직원이 없습니다.') + '</li>';
+      return;
+    }
+    rows.forEach(function (r) {
+        var li = document.createElement('li');
+        li.className = 'rowline';
+
+        // 왼쪽: 이름 + (사번) + 현재 상태 배지
+        var left = document.createElement('span');
+        left.textContent = dispName(r.name, r.rank) + ' ';
+        var meta = document.createElement('span');
+        meta.className = 'meta';
+        meta.textContent = '(' + r.id + ')' + (r.kakao ? ' · 카카오연결' : '');
+        left.appendChild(meta);
+        var roleBadge = document.createElement('span');
+        roleBadge.className = 'badge ' + (r.role === '관리자' ? 'admin' : 'staff');
+        roleBadge.textContent = r.role;
+        left.appendChild(roleBadge);
+        if (!r.active) {
+          var goneBadge = document.createElement('span');
+          goneBadge.className = 'badge gone';
+          goneBadge.textContent = '퇴사';
+          left.appendChild(goneBadge);
+        }
+
+        // 오른쪽: 동작 버튼 (현재 상태는 배지가, 버튼은 실행할 동작만)
+        var right = document.createElement('span');
+        var b1 = document.createElement('button');
+        b1.className = 'fixbtn';
+        b1.textContent = r.active ? '퇴사 처리' : '복직 처리';
+        b1.onclick = function () {
+          if (!confirm(r.name + ' 님을 ' + (r.active ? '퇴사' : '복직') + ' 처리할까요?' +
+              (r.active ? '\n(모든 기기에서 로그아웃됩니다)' : ''))) return;
+          var done = busy(b1);
+          api('admSetActive', { token: token, empId: r.id, active: !r.active }, function (res2) {
+            done(); showEmpMsg(res2); if (res2.ok) { clearAdmCache(); loadEmpList(); }
+          }, function () { done(); showEmpMsg({ ok: false, msg: '처리에 실패했습니다.' }); });
+        };
+        var b2 = document.createElement('button');
+        b2.className = 'fixbtn';
+        b2.textContent = '권한 변경';
+        b2.onclick = function () {
+          var to = r.role === '관리자' ? '직원' : '관리자';
+          if (!confirm(r.name + ' 님의 권한을 [' + r.role + '] → [' + to + '](으)로 바꿀까요?')) return;
+          var done = busy(b2);
+          api('admSetRole', { token: token, empId: r.id, role: to }, function (res2) {
+            done(); showEmpMsg(res2); if (res2.ok) { clearAdmCache(); loadEmpList(); }
+          }, function () { done(); showEmpMsg({ ok: false, msg: '처리에 실패했습니다.' }); });
+        };
+        var b0 = document.createElement('button');
+        b0.className = 'fixbtn';
+        b0.textContent = '초대';
+        b0.onclick = function () {
+          if (!confirm(r.name + ' 님의 초대링크를 발급할까요?\n(기존에 등록된 기기는 로그아웃됩니다)')) return;
+          var done = busy(b0);
+          api('admInvite', { token: token, empId: r.id }, function (res2) {
+            done();
+            if (res2.ok) shareInvite(res2.name, res2.code);
+            else showEmpMsg(res2);
+          }, function () { done(); showEmpMsg({ ok: false, msg: '발급에 실패했습니다.' }); });
+        };
+        var bk = document.createElement('button');
+        bk.className = 'fixbtn';
+        bk.textContent = '카카오해제';
+        bk.style.display = r.kakao ? '' : 'none';
+        bk.onclick = function () {
+          if (!confirm(r.name + ' 님의 카카오 연결을 해제할까요?\n(모든 기기 로그아웃, 다음 카카오 로그인 시 재연결)')) return;
+          var done = busy(bk);
+          api('admKakaoReset', { token: token, empId: r.id }, function (res2) {
+            done(); showEmpMsg(res2); if (res2.ok) { clearAdmCache(); loadEmpList(true); }
+          }, function () { done(); showEmpMsg({ ok: false, msg: '처리에 실패했습니다.' }); });
+        };
+        var b3 = document.createElement('button');
+        b3.className = 'fixbtn';
+        b3.textContent = '메일';
+        b3.onclick = function () {
+          var v = prompt(r.name + ' 님의 회사 이메일\n(변경하면 로그인 아이디도 바뀌고, 해당 직원은 다시 로그인해야 합니다)', r.email || '');
+          if (v === null) return;
+          var done = busy(b3);
+          api('admSetEmail', { token: token, empId: r.id, email: v.trim() }, function (res2) {
+            done(); showEmpMsg(res2); if (res2.ok) { clearAdmCache(); loadEmpList(); }
+          }, function () { done(); showEmpMsg({ ok: false, msg: '처리에 실패했습니다.' }); });
+        };
+        right.appendChild(b0); right.appendChild(bk); right.appendChild(b1); right.appendChild(b2); right.appendChild(b3);
+        li.appendChild(left); li.appendChild(right);
+        ul.appendChild(li);
+    });
+  }
+
+  function showEmpMsg(res) {
+    var msg = document.getElementById('adm-emp-msg');
+    msg.className = 'adm-msg ' + (res.ok ? 'ok' : 'err');
+    msg.textContent = res.msg;
+  }
+
+  function addEmp() {
+    var email = document.getElementById('e-email').value.trim();
+    var name = document.getElementById('e-name').value.trim();
+    var rank = document.getElementById('e-rank').value.trim();
+    var role = document.getElementById('e-role').value;
+    var msg = document.getElementById('adm-add-msg');
+    if (!email || !name) { msg.className = 'adm-msg err'; msg.textContent = '이메일과 이름을 입력해 주세요.'; return; }
+    msg.className = 'adm-msg'; msg.textContent = '';
+    var done = busy(document.getElementById('btn-addemp'));
+    api('admAddEmp', { token: token, email: email, name: name, rank: rank, role: role }, function (res) {
+      done();
+      msg.className = 'adm-msg ' + (res.ok ? 'ok' : 'err');
+      msg.textContent = res.msg;
+      if (res.ok && res.code) shareInvite(name, res.code);
+      if (res.ok) {
+        document.getElementById('e-email').value = '';
+        document.getElementById('e-name').value = '';
+        document.getElementById('e-rank').value = '';
+        empListLoaded = false; // 직원 select 갱신 유도
+        clearAdmCache();
+        loadEmpList();
+      }
+    }, function () { done(); msg.className = 'adm-msg err'; msg.textContent = '등록에 실패했습니다.'; });
+  }
+
+  function addManualRecord() {
+    var msg = document.getElementById('adm-manual-msg');
+    var empId = pickVal('m-emp');
+    var date = document.getElementById('m-date').value;
+    var type = document.getElementById('m-type').value;
+    var time = document.getElementById('m-time').value;
+    if (!empId) { msg.className = 'adm-msg err'; msg.textContent = '직원을 검색해서 선택해 주세요.'; return; }
+    if (!date || !time) { msg.className = 'adm-msg err'; msg.textContent = '날짜와 시각을 입력해 주세요.'; return; }
+    msg.className = 'adm-msg'; msg.textContent = '';
+    var done = busy(document.getElementById('btn-manual'));
+    api('admAddRecord', { token: token, empId: empId, date: date, time: time, type: type }, function (res) {
+      done();
+      if (res.ok) clearAdmCache();
+      msg.className = 'adm-msg ' + (res.ok ? 'ok' : 'err');
+      msg.textContent = res.msg;
+    }, function () { done(); msg.className = 'adm-msg err'; msg.textContent = '추가에 실패했습니다.'; });
+  }
+
+  /* ── 관리자: 휴가 관리 ── */
+  var vacFilter = 'day';   // day | week | month
+  var vacRows = [];
+
+  function setVacFilter(f) {
+    vacFilter = f;
+    ['day', 'week', 'month'].forEach(function (k) {
+      document.getElementById('vf-' + k).classList.toggle('on', k === f);
+    });
+    renderVacs();
+  }
+
+  /* 주어진 날짜가 보이는 가장 좁은 기간 필터 */
+  function filterFor(dateStr) {
+    var keep = vacFilter, out = 'month';
+    ['day', 'week', 'month'].some(function (f) {
+      vacFilter = f;
+      var r = vacRange();
+      if (dateStr >= r[0] && dateStr <= r[1]) { out = f; return true; }
+      return false;
+    });
+    vacFilter = keep;
+    return out;
+  }
+
+  /* 선택한 기간과 겹치는 휴가만 표시 */
+  function vacRange() {
+    var n = new Date(), f, t;
+    if (vacFilter === 'day') { f = new Date(n); t = new Date(n); }
+    else if (vacFilter === 'week') {
+      f = new Date(n); f.setDate(f.getDate() - f.getDay());        // 이번 주 일요일
+      t = new Date(f); t.setDate(t.getDate() + 6);                  // 토요일
+    } else {
+      f = new Date(n.getFullYear(), n.getMonth(), 1);
+      t = new Date(n.getFullYear(), n.getMonth() + 1, 0);
+    }
+    return [d2s(f), d2s(t)];
+  }
+
+  function renderVacs() {
+    var ul = document.getElementById('adm-vac-list');
+    var r = vacRange();
+    var rows = vacRows.filter(function (v) { return v.from <= r[1] && v.to >= r[0]; });
+    ul.innerHTML = '';
+    if (rows.length === 0) {
+      var label = vacFilter === 'day' ? '오늘' : vacFilter === 'week' ? '이번 주' : '이번 달';
+      ul.innerHTML = '<li class="empty">' + label + ' 등록된 휴가가 없습니다.</li>';
+      return;
+    }
+    rows.forEach(function (v) {
+        var li = document.createElement('li');
+        li.className = 'rowline';
+        var left = document.createElement('span');
+        left.textContent = v.name + ' ';
+        var meta = document.createElement('span');
+        meta.className = 'meta';
+        meta.textContent = v.from + (v.to !== v.from ? ' ~ ' + v.to : '') + ' · ' + v.kind + (v.memo ? ' · ' + v.memo : '');
+        left.appendChild(meta);
+        var right = document.createElement('span');
+        var del = document.createElement('button');
+        del.className = 'fixbtn';
+        del.textContent = '삭제';
+        del.onclick = function () {
+          if (!confirm(v.name + ' · ' + v.from + ' ' + v.kind + ' 를 삭제할까요?')) return;
+          var done = busy(del);
+          api('admVacDel', { token: token, vid: v.vid }, function (res2) {
+            done();
+            if (res2.ok) { clearAdmCache(); loadVacs(true); } else alert(res2.msg);
+          }, function () { done(); alert('삭제에 실패했습니다.'); });
+        };
+        right.appendChild(del);
+        li.appendChild(left); li.appendChild(right);
+        ul.appendChild(li);
+    });
+  }
+
+  function loadVacs(force) {
+    var ul = document.getElementById('adm-vac-list');
+    listLoading(ul);
+    cachedApi('vac', 'admVacList', { token: token }, force, TTL_LONG, function (res) {
+      if (!res.ok) { ul.innerHTML = '<li class="empty">' + res.msg + '</li>'; return; }
+      vacRows = res.rows || [];
+      renderVacs();
+    }, function () { ul.innerHTML = '<li class="empty">불러오기에 실패했습니다.</li>'; });
+  }
+
+  function addVac() {
+    var msg = document.getElementById('adm-vac-msg');
+    var empId = pickVal('v-emp');
+    var from = document.getElementById('v-from').value;
+    var to = document.getElementById('v-to').value;
+    var kind = document.getElementById('v-kind').value;
+    var memo = document.getElementById('v-memo').value.trim();
+    if (!empId) { msg.className = 'adm-msg err'; msg.textContent = '직원을 검색해서 선택해 주세요.'; return; }
+    if (!from) { msg.className = 'adm-msg err'; msg.textContent = '시작일을 선택해 주세요.'; return; }
+    msg.className = 'adm-msg'; msg.textContent = '';
+    var done = busy(document.getElementById('btn-vacadd'));
+    api('admVacAdd', { token: token, empId: empId, from: from, to: to, kind: kind, memo: memo }, function (res) {
+      done();
+      msg.className = 'adm-msg ' + (res.ok ? 'ok' : 'err');
+      msg.textContent = res.msg;
+      if (res.ok) {
+        document.getElementById('v-memo').value = '';
+        clearAdmCache();
+        setVacFilter(filterFor(from)); // 방금 등록한 건이 보이는 기간으로 전환
+        loadVacs(true);
+      }
+    }, function () { done(); msg.className = 'adm-msg err'; msg.textContent = '등록에 실패했습니다.'; });
+  }
+
+  /* ── 관리자: 비번 초기화 ── */
+  function resetPw() {
+    var msg = document.getElementById('adm-pw-msg');
+    var empId = pickVal('r-emp');
+    if (!empId) { msg.className = 'adm-msg err'; msg.textContent = '직원을 검색해서 선택해 주세요.'; return; }
+    var name = document.getElementById('r-emp').value;
+    if (!confirm(name + ' 의 비밀번호를 1234로 초기화할까요?')) return;
+    msg.className = 'adm-msg'; msg.textContent = '';
+    var done = busy(document.getElementById('btn-resetpw'));
+    api('admResetPw', { token: token, empId: empId }, function (res) {
+      done();
+      if (res.ok) clearAdmCache();
+      msg.className = 'adm-msg ' + (res.ok ? 'ok' : 'err');
+      msg.textContent = res.msg;
+    }, function () { done(); msg.className = 'adm-msg err'; msg.textContent = '처리에 실패했습니다.'; });
+  }
+
+  /* ── 카카오 로그인 ── */
+  function kakaoStart() {
+    location.href = 'https://kauth.kakao.com/oauth/authorize'
+      + '?client_id=' + KAKAO_KEY
+      + '&redirect_uri=' + encodeURIComponent(KAKAO_REDIRECT)
+      + '&response_type=code';
+  }
+
+  function applyAuth(res) {
+    token = res.token;
+    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem('tst_name', dispName(res.name, res.rank));
+    localStorage.setItem('tst_role', res.role || '');
+    localStorage.setItem('tst_email', res.email || '');
+    localStorage.setItem('tst_morning', res.morning ? '1' : '0');
+    todayVac = res.todayVac || '';
+    todayLoaded = true;
+    applyRole(res.role);
+    enterMain(dispName(res.name, res.rank), res.today || []);
+  }
+
+  function kakaoReturn(code) {
+    show('v-loading');
+    api('kakaoAuth', { code: code }, function (res) {
+      if (!res.ok) {
+        show('v-login');
+        document.getElementById('login-msg').textContent = res.msg;
+        return;
+      }
+      if (res.needLink) { showKlink(res); return; }
+      applyAuth(res); // 이미 연결된 직원 → 바로 로그인
+    }, function () {
+      show('v-login');
+      document.getElementById('login-msg').textContent = '연결에 실패했습니다. 다시 시도해 주세요.';
+    });
+  }
+
+  function showKlink(res) {
+    show('v-klink');
+    var ul = document.getElementById('klink-list');
+    ul.innerHTML = '';
+    if (!res.emps || res.emps.length === 0) {
+      ul.innerHTML = '<li class="empty">연결 가능한 직원이 없습니다. 관리자에게 문의해 주세요.</li>';
+      return;
+    }
+    res.emps.forEach(function (e) {
+      var li = document.createElement('li');
+      li.className = 'rowline';
+      li.style.cursor = 'pointer';
+      li.innerHTML = '<span></span><span class="t meta">선택</span>';
+      li.children[0].textContent = dispName(e.name, e.rank);
+      li.onclick = function () {
+        if (!confirm(dispName(e.name, e.rank) + '님이 맞습니까?\n본인 이름만 선택해 주세요.')) return;
+        var msg = document.getElementById('klink-msg');
+        msg.className = 'adm-msg'; msg.textContent = '연결 중…';
+        api('kakaoLink', { tmp: res.tmp, empId: e.id }, function (res2) {
+          if (!res2.ok) { msg.className = 'adm-msg err'; msg.textContent = res2.msg; return; }
+          applyAuth(res2);
+        }, function () { msg.className = 'adm-msg err'; msg.textContent = '연결에 실패했습니다. 다시 시도해 주세요.'; });
+      };
+      ul.appendChild(li);
+    });
+  }
+
+  /* ── 초대링크 기기등록 ── */
+  var invCode = '';
+
+  function isStandalone() {
+    return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  }
+
+  function inviteFlow(code) {
+    invCode = code;
+    show('v-invite');
+    var msg = document.getElementById('inv-msg');
+    api('invCheck', { code: code }, function (res) {
+      if (!res.ok) { msg.textContent = res.msg; return; }
+      var who = dispName(res.name, res.rank) + '님';
+      if (isStandalone()) {
+        // 홈 화면 앱에서 열림 → 여기서 등록 확정
+        msg.textContent = who + ', 아래 버튼을 누르면 이 기기가 등록됩니다.';
+        document.getElementById('btn-invreg').style.display = 'block';
+      } else {
+        // 브라우저에서 열림 → 홈 화면 추가 안내 (앱 저장소에 등록되도록)
+        msg.textContent = who + ' 확인되었습니다. 아래 순서대로 설치해 주세요.';
+        document.getElementById('inv-guide').style.display = 'block';
+      }
+    }, function () { msg.textContent = '연결에 실패했습니다. 화면을 새로고침해 주세요.'; });
+  }
+
+  function invRegister() {
+    var done = busy(document.getElementById('btn-invreg'));
+    api('invRegister', { code: invCode }, function (res) {
+      done();
+      var msg = document.getElementById('inv-msg');
+      if (!res.ok) { msg.textContent = res.msg; return; }
+      token = res.token;
+      localStorage.setItem(TOKEN_KEY, token);
+      localStorage.setItem('tst_name', dispName(res.name, res.rank));
+      localStorage.setItem('tst_role', res.role || '');
+      localStorage.setItem('tst_email', res.email || '');
+      localStorage.setItem('tst_morning', res.morning ? '1' : '0');
+      todayVac = res.todayVac || '';
+      todayLoaded = true;
+      history.replaceState(null, '', location.pathname); // 주소에서 초대코드 제거
+      applyRole(res.role);
+      enterMain(dispName(res.name, res.rank), res.today || []);
+    }, function () {
+      done();
+      document.getElementById('inv-msg').textContent = '등록에 실패했습니다. 다시 시도해 주세요.';
+    });
+  }
+
+  function inviteLink(code) {
+    return location.origin + location.pathname + '?inv=' + code;
+  }
+
+  function shareInvite(name, code) {
+    var link = inviteLink(code);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(link).then(function () {
+        alert(name + ' 님 초대링크가 복사되었습니다.\n카톡 등으로 붙여넣어 전달해 주세요.\n\n' + link);
+      }, function () { prompt('아래 링크를 복사해 전달해 주세요.', link); });
+    } else {
+      prompt('아래 링크를 복사해 전달해 주세요.', link);
+    }
+  }
+
+  /* ── 로그아웃 ── */
+  function logout() {
+    session++; // 진행 중이던 요청의 늦은 응답 차단
+    if (token) { api('logout', { token: token }, function () {}, function () {}); } // 서버 토큰 삭제
+    localStorage.removeItem(TOKEN_KEY); token = ''; myRole = '';
+    localStorage.removeItem('tst_name');
+    localStorage.removeItem('tst_role');
+    localStorage.removeItem('tst_email');
+    todayData = [];
+    empListLoaded = false;
+    document.getElementById('f-pw').value = '';
+    show('v-login');
+  }
+
+  /* ── IP는 참고용 (실패 무시) ── */
+  fetch('https://api.ipify.org?format=json')
+    .then(function (r) { return r.json(); })
+    .then(function (d) { clientIp = d.ip || ''; })
+    .catch(function () {});
+
+  ['q-emp', 'r-emp', 'm-emp', 'v-emp', 'm-mailto-emp'].forEach(initPicker);
+
+  // 서비스워커 등록 — 두 번째 실행부터 화면을 캐시에서 즉시 로드
+  // 테스트 페이지: 서비스워커 미등록 (캐시 혼선 방지)
+
+  boot();
+</script>
+</body>
+</html>
