@@ -905,7 +905,9 @@
       document.getElementById('today-list').innerHTML = '<li class="empty">불러오는 중…</li>';
       updatePunchButtons();
     } else {
-      todayData = todayList || [];
+      // 서버 응답으로 교체하되, 확정 대기 중인 낙관적 항목은 보존 (기록 중 백그라운드 갱신 경합 방지)
+      var pend = todayData.filter(function (r) { return r.pending; });
+      todayData = (todayList || []).concat(pend);
       renderToday(todayData);
     }
     // 사용자가 이미 다른 화면(메뉴 등)에 가 있으면 데이터만 갱신하고 화면은 건드리지 않음
@@ -1096,7 +1098,8 @@
     try {
       localStorage.setItem('att_today', JSON.stringify({
         d: bizKey(),
-        rows: todayData.map(function (r) { return { type: r.type, time: r.time }; })
+        rows: todayData.filter(function (r) { return !r.pending; })
+          .map(function (r) { return { type: r.type, time: r.time }; })
       }));
     } catch (e) {}
   }
