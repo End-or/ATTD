@@ -153,7 +153,7 @@
   .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
   .cal-dow { text-align: center; font-size: 12px; color: var(--sub); font-weight: 600; padding: 2px 0; }
   .cal-cell { height: 74px; border: 1px solid var(--line); border-radius: 8px; padding: 4px; background: #fff; cursor: pointer; overflow: hidden; }
-  .cal-cell.today { border-color: var(--accent); border-width: 1.5px; }
+  .cal-cell.cal-today { border-color: var(--accent); border-width: 1.5px; }
   .cal-cell.sel { background: var(--accent-soft); border-color: var(--accent); }
   .cal-day { font-size: 12px; font-weight: 600; }
   .cal-ev { font-size: 10.5px; line-height: 1.5; background: var(--accent-soft); color: var(--accent); border-radius: 4px; padding: 0 3px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -838,7 +838,7 @@
     for (var d = 1; d <= last; d++) {
       var ds = schedYm + '-' + String(d).padStart(2, '0');
       var cell = document.createElement('div');
-      cell.className = 'cal-cell' + (ds === todayStr ? ' today' : '') + (ds === schedSel ? ' sel' : '');
+      cell.className = 'cal-cell' + (ds === todayStr ? ' cal-today' : '') + (ds === schedSel ? ' sel' : '');
       var num = document.createElement('div');
       var dow = new Date(y, m - 1, d).getDay();
       num.className = 'cal-day' + (dow === 0 ? ' dsun' : dow === 6 ? ' dsat' : '');
