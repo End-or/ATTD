@@ -148,6 +148,18 @@
   }
   li.dayhead + li.rowline { border-top: none; }
   .warn { color: var(--danger); font-weight: 600; }
+  /* 개인 일정 달력 */
+  .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .cal-dow { text-align: center; font-size: 12px; color: var(--sub); font-weight: 600; padding: 2px 0; }
+  .cal-cell { min-height: 62px; border: 1px solid var(--line); border-radius: 8px; padding: 4px; background: #fff; cursor: pointer; overflow: hidden; }
+  .cal-cell.today { border-color: var(--accent); border-width: 1.5px; }
+  .cal-cell.sel { background: var(--accent-soft); border-color: var(--accent); }
+  .cal-day { font-size: 12px; font-weight: 600; }
+  .cal-ev { font-size: 10.5px; line-height: 1.5; background: var(--accent-soft); color: var(--accent); border-radius: 4px; padding: 0 3px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cal-ev.done { text-decoration: line-through; opacity: .55; }
+  .cal-more { font-size: 10px; color: var(--sub); margin-top: 1px; }
+  .sched-chk { width: 18px; height: 18px; accent-color: var(--accent); vertical-align: -4px; }
 
   /* 관리자 화면 */
   .seg { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 20px; }
@@ -502,6 +514,25 @@
 
     </div>
 
+    <!-- 일정 (전 직원) -->
+    <div id="sec-sched" class="sec">
+      <div class="cal-head">
+        <button class="fixbtn" style="margin-left:0" onclick="schedMove(-1)">&#9664;</button>
+        <h2 id="cal-title" style="margin:0"></h2>
+        <button class="fixbtn" onclick="schedMove(1)">&#9654;</button>
+      </div>
+      <div id="cal-grid" class="cal-grid"></div>
+      <div id="sched-day" style="display:none;margin-top:16px">
+        <h2 id="sched-day-title"></h2>
+        <ul id="sched-list"></ul>
+        <div class="range" style="margin-top:8px">
+          <input id="sched-new" placeholder="일정 입력 후 추가">
+          <button class="fixbtn" style="margin-left:0;padding:0 18px" onclick="schedAddNew()">추가</button>
+        </div>
+      </div>
+      <div id="sched-msg" class="adm-msg err"></div>
+    </div>
+
     <!-- 내 기록 (전 직원) -->
     <div id="sec-myrec" class="sec">
       <h2 id="myrec-title">이번 달 내 기록</h2>
@@ -651,13 +682,13 @@
 
   /* ── 메뉴 구조: 그룹 → 세부탭 → 섹션 ── */
   var MENU_GROUPS = [
-    { key: 'me',      label: '내 정보',   admin: false, tabs: [['myrec', '내 기록'], ['leave', '연차 계산']] },
+    { key: 'me',      label: '내 정보',   admin: false, tabs: [['sched', '일정'], ['myrec', '내 기록'], ['leave', '연차 계산']] },
     { key: 'records', label: '기록 조회', admin: true,  tabs: [['today', '금일 현황'], ['records', '조회'], ['monthly', '집계']] },
     { key: 'att',     label: '근태 관리', admin: true,  tabs: [['vac', '휴가'], ['missing', '퇴근 누락'], ['manual', '수동 기록']] },
     { key: 'acct',    label: '계정 관리', admin: true,  tabs: [['emp', '권한 관리'], ['addemp', '직원 추가'], ['pw', 'P/W 초기화']] },
     { key: 'set',     label: '설정',      admin: true,  hidden: true, tabs: [['notify', '알림']] }
   ];
-  var ALL_SECS = ['today', 'records', 'monthly', 'vac', 'missing', 'manual', 'emp', 'addemp', 'pw', 'notify', 'myrec', 'leave'];
+  var ALL_SECS = ['today', 'records', 'monthly', 'vac', 'missing', 'manual', 'emp', 'addemp', 'pw', 'notify', 'myrec', 'leave', 'sched'];
   var curGroupKey = null;
 
   function visibleGroups() {
@@ -735,6 +766,7 @@
     if (secId === 'emp') loadEmpList();
     if (secId === 'vac') loadVacs();
     if (secId === 'myrec') loadMyMonth();
+    if (secId === 'sched') openSched();
     if (secId === 'notify') {
       document.getElementById('chk-morning').checked = localStorage.getItem('tsta_morning') === '1';
     }
@@ -772,6 +804,144 @@
         ul.appendChild(li);
       });
     }, function () { ul.innerHTML = '<li class="empty">불러오기에 실패했습니다.</li>'; });
+  }
+
+  /* ── 개인 일정 (달력) ── */
+  var schedYm = '';
+  var schedSel = '';
+  var schedRows = [];
+
+  function openSched() {
+    var n = new Date();
+    if (!schedYm) schedYm = n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0');
+    if (!schedSel) schedSel = d2s(n);
+    loadSched();
+  }
+  function schedMove(delta) {
+    var pts = schedYm.split('-');
+    var d = new Date(Number(pts[0]), Number(pts[1]) - 1 + delta, 1);
+    schedYm = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    schedSel = '';
+    loadSched();
+  }
+  function loadSched() {
+    document.getElementById('cal-title').textContent = schedYm.replace('-', '년 ') + '월';
+    api('schedList', { token: token, ym: schedYm }, function (res) {
+      if (!res.ok) { document.getElementById('sched-msg').textContent = res.msg; return; }
+      schedRows = res.rows || [];
+      renderSchedCal();
+      renderSchedDay();
+    }, function () { document.getElementById('sched-msg').textContent = '불러오기에 실패했습니다.'; });
+  }
+  function renderSchedCal() {
+    var grid = document.getElementById('cal-grid');
+    grid.innerHTML = '';
+    ['일', '월', '화', '수', '목', '금', '토'].forEach(function (w, i) {
+      var h = document.createElement('div');
+      h.className = 'cal-dow' + (i === 0 ? ' dsun' : i === 6 ? ' dsat' : '');
+      h.textContent = w;
+      grid.appendChild(h);
+    });
+    var y = Number(schedYm.slice(0, 4)), m = Number(schedYm.slice(5, 7));
+    var first = new Date(y, m - 1, 1);
+    var last = new Date(y, m, 0).getDate();
+    var todayStr = d2s(new Date());
+    var byDate = {};
+    schedRows.forEach(function (r) { (byDate[r.date] = byDate[r.date] || []).push(r); });
+    for (var i = 0; i < first.getDay(); i++) grid.appendChild(document.createElement('div'));
+    for (var d = 1; d <= last; d++) {
+      var ds = schedYm + '-' + String(d).padStart(2, '0');
+      var cell = document.createElement('div');
+      cell.className = 'cal-cell' + (ds === todayStr ? ' today' : '') + (ds === schedSel ? ' sel' : '');
+      var num = document.createElement('div');
+      var dow = new Date(y, m - 1, d).getDay();
+      num.className = 'cal-day' + (dow === 0 ? ' dsun' : dow === 6 ? ' dsat' : '');
+      num.textContent = d;
+      cell.appendChild(num);
+      var evs = byDate[ds] || [];
+      evs.slice(0, 3).forEach(function (r) {
+        var ev = document.createElement('div');
+        ev.className = 'cal-ev' + (r.done ? ' done' : '');
+        ev.textContent = r.title;
+        cell.appendChild(ev);
+      });
+      if (evs.length > 3) {
+        var more = document.createElement('div');
+        more.className = 'cal-more';
+        more.textContent = '+' + (evs.length - 3) + '개';
+        cell.appendChild(more);
+      }
+      (function (dsx) {
+        cell.onclick = function () { schedSel = dsx; renderSchedCal(); renderSchedDay(); };
+      })(ds);
+      grid.appendChild(cell);
+    }
+  }
+  function renderSchedDay() {
+    var wrap = document.getElementById('sched-day');
+    var ul = document.getElementById('sched-list');
+    document.getElementById('sched-msg').textContent = '';
+    if (!schedSel || schedSel.slice(0, 7) !== schedYm) { wrap.style.display = 'none'; return; }
+    wrap.style.display = '';
+    var t = document.getElementById('sched-day-title');
+    t.textContent = schedSel;
+    appendDow(t, schedSel);
+    ul.innerHTML = '';
+    var rows = schedRows.filter(function (r) { return r.date === schedSel; });
+    if (rows.length === 0) ul.innerHTML = '<li class="empty">일정이 없습니다. 아래에 입력해 추가하세요.</li>';
+    rows.forEach(function (r) {
+      var li = document.createElement('li');
+      li.className = 'rowline';
+      var left = document.createElement('span');
+      var chk = document.createElement('input');
+      chk.type = 'checkbox';
+      chk.className = 'sched-chk';
+      chk.checked = !!r.done;
+      chk.onchange = function () {
+        api('schedEdit', { token: token, sid: r.sid, done: chk.checked }, function (res) {
+          if (res.ok) { r.done = chk.checked; renderSchedCal(); renderSchedDay(); }
+        });
+      };
+      left.appendChild(chk);
+      var tt = document.createElement('span');
+      tt.textContent = ' ' + r.title;
+      tt.style.cursor = 'pointer';
+      if (r.done) { tt.style.textDecoration = 'line-through'; tt.style.opacity = '.6'; }
+      tt.onclick = function () {
+        var v = prompt('일정 수정', r.title);
+        if (v === null || !v.trim()) return;
+        api('schedEdit', { token: token, sid: r.sid, title: v.trim() }, function (res) { if (res.ok) loadSched(); });
+      };
+      left.appendChild(tt);
+      if (r.memo) {
+        var mm = document.createElement('span');
+        mm.className = 'meta';
+        mm.textContent = ' · ' + r.memo;
+        left.appendChild(mm);
+      }
+      var right = document.createElement('span');
+      var del = document.createElement('button');
+      del.className = 'fixbtn';
+      del.textContent = '삭제';
+      del.onclick = function () {
+        if (!confirm('삭제할까요?\n' + r.title)) return;
+        api('schedDel', { token: token, sid: r.sid }, function (res) { if (res.ok) loadSched(); });
+      };
+      right.appendChild(del);
+      li.appendChild(left);
+      li.appendChild(right);
+      ul.appendChild(li);
+    });
+  }
+  function schedAddNew() {
+    var inp = document.getElementById('sched-new');
+    var v = inp.value.trim();
+    if (!v || !schedSel) return;
+    api('schedAdd', { token: token, date: schedSel, title: v }, function (res) {
+      if (!res.ok) { document.getElementById('sched-msg').textContent = res.msg; return; }
+      inp.value = '';
+      loadSched();
+    }, function () { document.getElementById('sched-msg').textContent = '등록에 실패했습니다.'; });
   }
 
   /* ── 시계 ── */
@@ -1877,6 +2047,10 @@
     .catch(function () {});
 
   ['q-emp', 'r-emp', 'm-emp', 'v-emp', 'm-mailto-emp'].forEach(initPicker);
+
+  document.getElementById('sched-new').addEventListener('keydown', function (ev) {
+    if (ev.key === 'Enter') schedAddNew();
+  });
 
   // 서비스워커 등록 — 두 번째 실행부터 화면을 캐시에서 즉시 로드
   // 테스트 페이지: 서비스워커 미등록 (캐시 혼선 방지)
