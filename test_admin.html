@@ -4,7 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
 <meta name="theme-color" content="#1f1e30">
-<title>출퇴근 관리 (Supabase TEST)</title>
+<title>출퇴근 관리</title>
+<link rel="manifest" href="manifest-admin-test.json">
 <link rel="apple-touch-icon" href="icon-admin-192.png">
 <style>
   :root {
@@ -260,10 +261,10 @@
 
   <!-- 로그인 -->
   <div id="v-login" class="view">
-    <div class="brand">ATTENDANCE &middot; ADMIN &middot; SUPABASE TEST</div>
+    <div class="brand">ATTENDANCE &middot; ADMIN</div>
     <h1>출퇴근 관리</h1>
-    <label for="f-id">아이디 (회사 이메일 @ 앞부분)</label>
-    <input id="f-id" placeholder="hong.gd" autocomplete="username" autocapitalize="none" autocorrect="off">
+    <label for="f-id">아이디</label>
+    <input id="f-id" placeholder="아이디" autocomplete="username" autocapitalize="none" autocorrect="off">
     <label for="f-pw">비밀번호</label>
     <input id="f-pw" type="password" placeholder="비밀번호" autocomplete="current-password">
     <button id="btn-login" class="primary" onclick="login()">로그인</button>
@@ -275,7 +276,7 @@
 
   <!-- 비밀번호 변경 -->
   <div id="v-changepw" class="view">
-    <div class="brand">ATTENDANCE &middot; ADMIN &middot; SUPABASE TEST</div>
+    <div class="brand">ATTENDANCE &middot; ADMIN</div>
     <h1>비밀번호 변경</h1>
     <p style="font-size:14px;color:var(--sub);line-height:1.6">
       초기 비밀번호(1234)를 사용 중입니다.<br>새 비밀번호를 설정해 주세요.
