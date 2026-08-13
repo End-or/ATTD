@@ -229,28 +229,6 @@
 <body>
 <div class="app">
 
-  <!-- 초대 등록 -->
-  <div id="v-invite" class="view">
-    <div class="center" style="flex-direction:column;padding:32px 22px;text-align:center">
-      <div style="max-width:340px;width:100%">
-        <h1 style="font-size:22px;margin-bottom:12px">직원 등록</h1>
-        <p id="inv-msg" class="meta" style="line-height:1.7;margin-bottom:18px">확인 중…</p>
-        <div id="inv-guide" style="display:none;text-align:left" class="meta">
-          <p style="line-height:1.9">
-            1. 브라우저 메뉴에서 <b>홈 화면에 추가</b>로 앱을 설치해 주세요.<br>
-            &nbsp;&nbsp;· 아이폰: 공유(&#x2191;) &rarr; 홈 화면에 추가<br>
-            &nbsp;&nbsp;· 안드로이드: &#8942; 메뉴 &rarr; 홈 화면에 추가<br>
-            2. 홈 화면의 <b>출퇴근 앱</b>을 열면 등록 버튼이 나타납니다.
-          </p>
-          <p style="margin-top:12px;line-height:1.7">
-            카카오톡 안에서 열렸다면 우측 하단 &#8942; &rarr; <b>다른 브라우저로 열기</b> 후 진행해 주세요.
-          </p>
-        </div>
-        <button id="btn-invreg" class="primary" style="display:none;margin-top:8px" onclick="invRegister()">이 기기로 등록 완료하기</button>
-      </div>
-    </div>
-  </div>
-
   <!-- 카카오 최초 연결: 이름 선택 -->
   <div id="v-klink" class="view">
     <div class="wrap" style="padding-top:40px">
@@ -287,7 +265,7 @@
     <label for="f-id">아이디 (회사 이메일 @ 앞부분)</label>
     <input id="f-id" placeholder="hong.gd" autocomplete="username" autocapitalize="none" autocorrect="off">
     <label for="f-pw">비밀번호</label>
-    <input id="f-pw" type="password" placeholder="초기 비밀번호 1234" autocomplete="current-password">
+    <input id="f-pw" type="password" placeholder="비밀번호" autocomplete="current-password">
     <button id="btn-login" class="primary" onclick="login()">로그인</button>
     <div class="ordiv">또는</div>
     <button class="kakao-btn" onclick="kakaoStart()">카카오 로그인</button>
@@ -452,7 +430,7 @@
       <input id="e-rank" placeholder="사원 / 대리 / 과장 …">
       <label>권한</label>
       <select id="e-role"><option>직원</option><option>관리자</option></select>
-      <button id="btn-addemp" class="mini" onclick="addEmp()">추가 (초기 비밀번호 1234)</button>
+      <button id="btn-addemp" class="mini" onclick="addEmp()">추가</button>
       <div id="adm-add-msg" class="adm-msg"></div>
     </div>
 
@@ -550,8 +528,8 @@
       <button id="btn-resetpw" class="mini red" onclick="resetPw()">1234로 초기화</button>
       <div id="adm-pw-msg" class="adm-msg"></div>
       <p style="font-size:13px;color:var(--sub);margin-top:12px;line-height:1.6">
-        초기화하면 해당 직원의 모든 기기에서 로그아웃되며, 초기 비밀번호(1234)로
-        다시 로그인한 뒤 새 비밀번호를 설정하게 됩니다.
+        비밀번호는 관리자 계정 로그인에만 사용됩니다 (직원은 카카오 로그인 전용).
+        초기화하면 해당 계정은 모든 기기에서 로그아웃되고, 1234로 로그인해 새 비밀번호를 설정합니다.
       </p>
     </div>
 
@@ -912,7 +890,7 @@
     // 사용자가 이미 다른 화면(메뉴 등)에 가 있으면 데이터만 갱신하고 화면은 건드리지 않음
     var cur = document.querySelector('.view.on');
     if (!cur || cur.id === 'v-loading' || cur.id === 'v-login' || cur.id === 'v-main'
-        || cur.id === 'v-klink' || cur.id === 'v-invite') { // v-kadm 제외 — 백그라운드 갱신이 연결 화면을 덮지 않게
+        || cur.id === 'v-klink') { // v-kadm 제외 — 백그라운드 갱신이 연결 화면을 덮지 않게
       show('v-main');
     }
     prefetchLocation();
@@ -1570,18 +1548,6 @@
             done(); showEmpMsg(res2); if (res2.ok) { clearAdmCache(); loadEmpList(); }
           }, function () { done(); showEmpMsg({ ok: false, msg: '처리에 실패했습니다.' }); });
         };
-        var b0 = document.createElement('button');
-        b0.className = 'fixbtn';
-        b0.textContent = '초대';
-        b0.onclick = function () {
-          if (!confirm(r.name + ' 님의 초대링크를 발급할까요?\n(기존에 등록된 기기는 로그아웃됩니다)')) return;
-          var done = busy(b0);
-          api('admInvite', { token: token, empId: r.id }, function (res2) {
-            done();
-            if (res2.ok) shareInvite(res2.name, res2.code);
-            else showEmpMsg(res2);
-          }, function () { done(); showEmpMsg({ ok: false, msg: '발급에 실패했습니다.' }); });
-        };
         var bk = document.createElement('button');
         bk.className = 'fixbtn';
         bk.textContent = '카카오해제';
@@ -1604,7 +1570,7 @@
             done(); showEmpMsg(res2); if (res2.ok) { clearAdmCache(); loadEmpList(); }
           }, function () { done(); showEmpMsg({ ok: false, msg: '처리에 실패했습니다.' }); });
         };
-        right.appendChild(b0); right.appendChild(bk); right.appendChild(b1); right.appendChild(b2); right.appendChild(b3);
+        right.appendChild(bk); right.appendChild(b1); right.appendChild(b2); right.appendChild(b3);
         li.appendChild(left); li.appendChild(right);
         ul.appendChild(li);
     });
@@ -1629,7 +1595,6 @@
       done();
       msg.className = 'adm-msg ' + (res.ok ? 'ok' : 'err');
       msg.textContent = res.msg;
-      if (res.ok && res.code) shareInvite(name, res.code);
       if (res.ok) {
         document.getElementById('e-email').value = '';
         document.getElementById('e-name').value = '';
@@ -1888,70 +1853,6 @@
       };
       ul.appendChild(li);
     });
-  }
-
-  /* ── 초대링크 기기등록 ── */
-  var invCode = '';
-
-  function isStandalone() {
-    return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-  }
-
-  function inviteFlow(code) {
-    invCode = code;
-    show('v-invite');
-    var msg = document.getElementById('inv-msg');
-    api('invCheck', { code: code }, function (res) {
-      if (!res.ok) { msg.textContent = res.msg; return; }
-      var who = dispName(res.name, res.rank) + '님';
-      if (isStandalone()) {
-        // 홈 화면 앱에서 열림 → 여기서 등록 확정
-        msg.textContent = who + ', 아래 버튼을 누르면 이 기기가 등록됩니다.';
-        document.getElementById('btn-invreg').style.display = 'block';
-      } else {
-        // 브라우저에서 열림 → 홈 화면 추가 안내 (앱 저장소에 등록되도록)
-        msg.textContent = who + ' 확인되었습니다. 아래 순서대로 설치해 주세요.';
-        document.getElementById('inv-guide').style.display = 'block';
-      }
-    }, function () { msg.textContent = '연결에 실패했습니다. 화면을 새로고침해 주세요.'; });
-  }
-
-  function invRegister() {
-    var done = busy(document.getElementById('btn-invreg'));
-    api('invRegister', { code: invCode }, function (res) {
-      done();
-      var msg = document.getElementById('inv-msg');
-      if (!res.ok) { msg.textContent = res.msg; return; }
-      token = res.token;
-      localStorage.setItem(TOKEN_KEY, token);
-      localStorage.setItem('tsta_name', dispName(res.name, res.rank));
-      localStorage.setItem('tsta_role', res.role || '');
-      localStorage.setItem('tsta_email', res.email || '');
-      localStorage.setItem('tsta_morning', res.morning ? '1' : '0');
-      todayVac = res.todayVac || '';
-      todayLoaded = true;
-      history.replaceState(null, '', location.pathname); // 주소에서 초대코드 제거
-      applyRole(res.role);
-      enterMain(dispName(res.name, res.rank), res.today || []);
-    }, function () {
-      done();
-      document.getElementById('inv-msg').textContent = '등록에 실패했습니다. 다시 시도해 주세요.';
-    });
-  }
-
-  function inviteLink(code) {
-    return location.origin + location.pathname + '?inv=' + code;
-  }
-
-  function shareInvite(name, code) {
-    var link = inviteLink(code);
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(link).then(function () {
-        alert(name + ' 님 초대링크가 복사되었습니다.\n카톡 등으로 붙여넣어 전달해 주세요.\n\n' + link);
-      }, function () { prompt('아래 링크를 복사해 전달해 주세요.', link); });
-    } else {
-      prompt('아래 링크를 복사해 전달해 주세요.', link);
-    }
   }
 
   /* ── 로그아웃 ── */
