@@ -158,6 +158,7 @@
   .cal-day { font-size: 12px; font-weight: 600; }
   .cal-ev { font-size: 10.5px; line-height: 1.5; background: var(--accent-soft); color: var(--accent); border-radius: 4px; padding: 0 3px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .cal-ev.done { text-decoration: line-through; opacity: .55; }
+  .cal-ev.hol { background: #fdecea; color: var(--danger); }
   .cal-more { font-size: 10px; color: var(--sub); margin-top: 1px; }
   .sched-chk { width: 18px; height: 18px; accent-color: var(--accent); vertical-align: -4px; }
 
@@ -659,7 +660,6 @@
   function gotoTab(t) {
     if (t === 'menu') {
       show('v-admin');
-      if (myRole === '관리자' && !empListLoaded) loadAdminToday();
       renderMenu();
     } else {
       show('v-main');
@@ -678,8 +678,8 @@
   var curGroupKey = null;
 
   function visibleGroups() {
-    var isAdmin = myRole === '관리자';
-    return MENU_GROUPS.filter(function (g) { return isAdmin || !g.admin; });
+    // 일반(직원) 앱: 관리자 계정이어도 관리 메뉴는 표시하지 않음 — 관리 업무는 admin.html 전용
+    return MENU_GROUPS.filter(function (g) { return !g.admin; });
   }
 
   function renderMenu() {
@@ -703,9 +703,9 @@
       b.onclick = function () { openGroup(g.key); };
       wrap.appendChild(b);
     });
-    document.getElementById('btn-gear').classList.toggle('show', myRole === '관리자');
+    document.getElementById('btn-gear').classList.remove('show'); // 일반 앱: 설정(관리자 전용) 미노출
     // 관리자는 업무 첫 그룹(기록 조회)을, 직원은 내 정보를 기본으로
-    var def = myRole === '관리자' ? 'records' : groups[0].key;
+    var def = groups[0].key;
     var cur = groups.some(function (g) { return g.key === curGroupKey && !g.hidden; }) ? curGroupKey : def;
     openGroup(cur);
   }
@@ -793,6 +793,35 @@
   }
 
   /* ── 개인 일정 (달력) ── */
+  /* 공휴일 (매년 초 다음 해 목록 추가) */
+  var HOLIDAYS = {
+    '2026-01-01': '신정',
+    '2026-02-16': '설연휴', '2026-02-17': '설날', '2026-02-18': '설연휴',
+    '2026-03-01': '삼일절', '2026-03-02': '대체공휴일',
+    '2026-05-05': '어린이날',
+    '2026-05-24': '부처님오신날', '2026-05-25': '대체공휴일',
+    '2026-06-03': '지방선거',
+    '2026-06-06': '현충일',
+    '2026-07-17': '제헌절',
+    '2026-08-15': '광복절', '2026-08-17': '대체공휴일',
+    '2026-09-24': '추석연휴', '2026-09-25': '추석', '2026-09-26': '추석연휴',
+    '2026-10-03': '개천절', '2026-10-05': '대체공휴일',
+    '2026-10-09': '한글날',
+    '2026-12-25': '성탄절'
+  };
+  // 서버(구글 공휴일 캘린더)에서 연도별 목록을 받아 병합 — 실패해도 위 내장 목록으로 표시
+  var holLoaded = {};
+  function ensureHolidays(year, cb) {
+    if (holLoaded[year]) { cb(); return; }
+    api('holidays', { year: year }, function (res) {
+      if (res && res.ok && res.days) {
+        for (var k in res.days) HOLIDAYS[k] = res.days[k];
+        holLoaded[year] = true;
+      }
+      cb();
+    }, function () { cb(); });
+  }
+
   var schedYm = '';
   var schedSel = '';
   var schedRows = [];
@@ -812,12 +841,14 @@
   }
   function loadSched() {
     document.getElementById('cal-title').textContent = schedYm.replace('-', '년 ') + '월';
+    ensureHolidays(schedYm.slice(0, 4), function () {
     api('schedList', { token: token, ym: schedYm }, function (res) {
       if (!res.ok) { document.getElementById('sched-msg').textContent = res.msg; return; }
       schedRows = res.rows || [];
       renderSchedCal();
       renderSchedDay();
     }, function () { document.getElementById('sched-msg').textContent = '불러오기에 실패했습니다.'; });
+    });
   }
   function renderSchedCal() {
     var grid = document.getElementById('cal-grid');
@@ -839,22 +870,30 @@
       var ds = schedYm + '-' + String(d).padStart(2, '0');
       var cell = document.createElement('div');
       cell.className = 'cal-cell' + (ds === todayStr ? ' cal-today' : '') + (ds === schedSel ? ' sel' : '');
+      var hol = HOLIDAYS[ds] || '';
       var num = document.createElement('div');
       var dow = new Date(y, m - 1, d).getDay();
-      num.className = 'cal-day' + (dow === 0 ? ' dsun' : dow === 6 ? ' dsat' : '');
+      num.className = 'cal-day' + (hol || dow === 0 ? ' dsun' : dow === 6 ? ' dsat' : '');
       num.textContent = d;
       cell.appendChild(num);
+      if (hol) {
+        var hv = document.createElement('div');
+        hv.className = 'cal-ev hol';
+        hv.textContent = hol;
+        cell.appendChild(hv);
+      }
       var evs = byDate[ds] || [];
-      evs.slice(0, 2).forEach(function (r) {
+      var maxEv = hol ? 1 : 2; // 공휴일 배지가 한 칸 차지
+      evs.slice(0, maxEv).forEach(function (r) {
         var ev = document.createElement('div');
         ev.className = 'cal-ev' + (r.done ? ' done' : '');
         ev.textContent = r.title;
         cell.appendChild(ev);
       });
-      if (evs.length > 2) {
+      if (evs.length > maxEv) {
         var more = document.createElement('div');
         more.className = 'cal-more';
-        more.textContent = '+' + (evs.length - 2) + '개';
+        more.textContent = '+' + (evs.length - maxEv) + '개';
         cell.appendChild(more);
       }
       (function (dsx) {
@@ -872,6 +911,12 @@
     var t = document.getElementById('sched-day-title');
     t.textContent = schedSel;
     appendDow(t, schedSel);
+    if (HOLIDAYS[schedSel]) {
+      var hs = document.createElement('span');
+      hs.className = 'dsun';
+      hs.textContent = ' · ' + HOLIDAYS[schedSel];
+      t.appendChild(hs);
+    }
     ul.innerHTML = '';
     var rows = schedRows.filter(function (r) { return r.date === schedSel; });
     if (rows.length === 0) ul.innerHTML = '<li class="empty">일정이 없습니다. 아래에 입력해 추가하세요.</li>';
